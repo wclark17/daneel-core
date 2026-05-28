@@ -1448,6 +1448,8 @@
     "format:docs:check": "node scripts/format-docs.mjs --check",
     "format:fix": "oxfmt --write --threads=1",
     "format:swift": "swiftformat --lint --config config/swiftformat --exclude '**/apps/swabble,**/apps/android,**/apps/ios,**/apps/shared,**/OpenClawProtocol,**/HostEnvSecurityPolicy.generated.swift' apps/macos/Sources apps/ios/Sources apps/shared/OpenClawKit/Sources",
+    "gateway:daneel-core": "node scripts/run-node.mjs --profile daneel-core gateway",
+    "gateway:daneel-core:reset": "node scripts/run-node.mjs --profile daneel-core gateway --reset",
     "gateway:dev": "node scripts/run-with-env.mjs OPENCLAW_SKIP_CHANNELS=1 -- node scripts/run-node.mjs --dev gateway",
     "gateway:dev:reset": "node scripts/run-with-env.mjs OPENCLAW_SKIP_CHANNELS=1 -- node scripts/run-node.mjs --dev gateway --reset",
     "gateway:watch": "node scripts/gateway-watch-tmux.mjs gateway --force",

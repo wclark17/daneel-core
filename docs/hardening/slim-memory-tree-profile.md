@@ -1,6 +1,8 @@
-# Slim Memory Tree Hardening Profile
+# Daneel Core Hardening Profile
 
 This fork intentionally starts from a smaller trusted surface than upstream OpenClaw.
+The working runtime name is `Daneel Core`; the repository and package names stay
+`openclaw` for now to keep upstream patch review and cherry-picking practical.
 
 ## Goal
 
@@ -61,3 +63,9 @@ Future connectors should be restored only after they have:
 ## Upstream Policy
 
 Keep upstream as a patch source, not an automatic fast-forward target. After this profile removes large extension areas, upstream updates should be cherry-picked or selectively merged with review.
+
+## Test Identity
+
+Use branch `hardened-memory-core` and runtime profile `daneel-core` for testing.
+See `docs/hardening/daneel-core-test-profile.md` for the profile commands and
+Telegram isolation policy.
