@@ -110,6 +110,3 @@ packageExtensions:
     peerDependenciesMeta:
       sharp:
         optional: true
-
-patchedDependencies:
-  '@agentclientprotocol/claude-agent-acp@0.37.0': patches/@agentclientprotocol__claude-agent-acp@0.37.0.patch
