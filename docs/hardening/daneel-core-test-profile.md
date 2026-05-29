@@ -40,6 +40,32 @@ The wrapper pins port `18790`, writes logs to
 startup rebuilds and local probes still work on hosts where only `corepack` is
 on `PATH`.
 
+## Service Runtime
+
+For day-to-day use, install Daneel Core as a user-level systemd service and use
+the `daneel-core` command line manager:
+
+```sh
+node daneel-core.mjs install-service
+daneel-core status
+daneel-core probe
+daneel-core restart
+daneel-core logs
+```
+
+`install-service` writes `~/.config/systemd/user/openclaw-daneel-core.service`,
+enables it, starts it, and installs a `~/.local/bin/daneel-core` symlink back to
+this checkout. The service pins the same profile, state dir, and port as the
+detached wrapper:
+
+- profile: `daneel-core`
+- state dir: `~/.openclaw-daneel-core`
+- port: `18790`
+- service log: `~/.openclaw-daneel-core/logs/gateway-service.log`
+
+The detached wrapper remains useful as a fallback for local testing, but the
+service is the preferred long-running runtime.
+
 This sets `OPENCLAW_PROFILE=daneel-core` and, unless explicitly overridden,
 stores mutable runtime data under:
 
