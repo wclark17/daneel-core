@@ -32,6 +32,7 @@ Commands:
   stop                 Stop the systemd service
   restart              Restart the systemd service
   status               Show service status and port listener state
+  healthcheck          Check service, port, Telegram, model auth, and fresh logs
   probe                Probe OpenClaw channels for the Daneel Core profile
   logs [lines]         Show recent service logs
   follow-logs          Follow service logs
@@ -77,6 +78,34 @@ function printOptional(command, args, options = {}) {
     process.stderr.write(result.stderr);
   }
   return result;
+}
+
+function parseJsonRun(command, args, options = {}) {
+  const result = runOptional(command, args, options);
+  if (result.status !== 0) {
+    return { ok: false, result, value: null, error: result.stderr || result.stdout };
+  }
+  try {
+    return { ok: true, result, value: JSON.parse(result.stdout), error: null };
+  } catch (error) {
+    return { ok: false, result, value: null, error: `invalid JSON: ${error.message}` };
+  }
+}
+
+function readJsonFile(file) {
+  return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+
+function decodeJwtPayload(token) {
+  const parts = String(token || "").split(".");
+  if (parts.length < 2) {
+    return null;
+  }
+  try {
+    return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
 }
 
 async function ensureRuntimePath() {
@@ -346,6 +375,186 @@ async function probe() {
   });
 }
 
+function recentLogIssues() {
+  if (!fs.existsSync(serviceLog)) {
+    return { ok: false, detail: `service log missing: ${serviceLog}`, matches: [] };
+  }
+  const text = fs.readFileSync(serviceLog, "utf8");
+  const readyMarker = "[gateway] ready";
+  const readyAt = text.lastIndexOf(readyMarker);
+  if (readyAt < 0) {
+    return { ok: false, detail: "service log has no recent gateway ready marker", matches: [] };
+  }
+  const recent = text.slice(readyAt);
+  const patterns = [
+    /\bfatal\b/i,
+    /\bpanic\b/i,
+    /\buncaught\b/i,
+    /ERR_MODULE_NOT_FOUND/i,
+    /failed to load/i,
+    /sidecars failed/i,
+    /startup model warmup failed/i,
+    /Plugin approval unavailable/i,
+  ];
+  const matches = recent
+    .split(/\r?\n/)
+    .filter((line) => patterns.some((pattern) => pattern.test(line)))
+    .slice(-10);
+  return {
+    ok: matches.length === 0,
+    detail:
+      matches.length === 0
+        ? "no severe log lines since latest ready marker"
+        : `${matches.length} severe log line(s) since latest ready marker`,
+    matches,
+  };
+}
+
+async function healthcheck() {
+  await ensureRuntimePath();
+  const json = process.argv.includes("--json");
+  const checks = [];
+  const add = (name, ok, detail, extra = {}) => {
+    checks.push({ name, ok: Boolean(ok), detail, ...extra });
+  };
+
+  const active = systemctlOptional(["is-active", serviceUnit]);
+  add(
+    "service",
+    active.stdout.trim() === "active",
+    active.stdout.trim() || active.stderr.trim() || `exit ${active.status}`,
+  );
+
+  const enabled = systemctlOptional(["is-enabled", serviceUnit]);
+  add(
+    "service-enabled",
+    enabled.stdout.trim() === "enabled",
+    enabled.stdout.trim() || enabled.stderr.trim() || `exit ${enabled.status}`,
+  );
+
+  const listener = runOptional("ss", ["-ltnp", `sport = :${port}`]);
+  add(
+    "port",
+    listener.ok && listener.stdout.includes(`:${port}`),
+    listener.stdout.trim() || listener.stderr.trim() || `no listener on ${port}`,
+  );
+
+  const channel = parseJsonRun(
+    process.execPath,
+    ["openclaw.mjs", "channels", "status", "--probe", "--json"],
+    {
+      env: coreEnv(),
+      cwd: repoRoot,
+    },
+  );
+  if (!channel.ok) {
+    add("telegram", false, channel.error || "channels status failed");
+  } else {
+    const account = channel.value?.channelAccounts?.telegram?.[0];
+    add(
+      "telegram",
+      Boolean(account?.configured && account?.running && account?.probe?.ok),
+      account
+        ? `configured=${account.configured} running=${account.running} connected=${account.connected} probe=${account.probe?.ok} bot=${account.probe?.bot?.username || account.probe?.botInfo?.username || "unknown"}`
+        : "telegram account missing",
+    );
+  }
+
+  const models = parseJsonRun(process.execPath, ["openclaw.mjs", "models", "status", "--json"], {
+    env: coreEnv(),
+    cwd: repoRoot,
+  });
+  if (!models.ok) {
+    add("model-auth", false, models.error || "models status failed");
+  } else {
+    const auth = models.value?.auth || {};
+    const routes = Array.isArray(auth.runtimeAuthRoutes) ? auth.runtimeAuthRoutes : [];
+    const unusable = Array.isArray(auth.unusableProfiles) ? auth.unusableProfiles : [];
+    const missing = Array.isArray(auth.missingProvidersInUse) ? auth.missingProvidersInUse : [];
+    const oauthProfiles = Array.isArray(auth.oauth?.profiles) ? auth.oauth.profiles : [];
+    const usableRoutes = routes.filter((route) => route.status === "usable").length;
+    const soonestRemainingMs = oauthProfiles
+      .map((profileInfo) => profileInfo.remainingMs)
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => a - b)[0];
+    const remainingDetail = Number.isFinite(soonestRemainingMs)
+      ? ` oauthRemainingHours=${Math.round(soonestRemainingMs / 36_000) / 100}`
+      : "";
+    add(
+      "model-auth",
+      usableRoutes > 0 && unusable.length === 0 && missing.length === 0,
+      `default=${models.value?.resolvedDefault || models.value?.defaultModel || "unknown"} usableRoutes=${usableRoutes} missing=${missing.length} unusable=${unusable.length}${remainingDetail}`,
+    );
+  }
+
+  try {
+    const cfg = readJsonFile(path.join(stateDir, "openclaw.json"));
+    const defaultModel =
+      models.value?.resolvedDefault ||
+      models.value?.defaultModel ||
+      cfg.agents?.defaults?.model?.primary;
+    const runtimeId = cfg.agents?.defaults?.models?.[defaultModel]?.agentRuntime?.id;
+    const authStore = readJsonFile(
+      path.join(stateDir, "agents", "main", "agent", "auth-profiles.json"),
+    );
+    const codexProfile = Object.values(authStore.profiles || {}).find(
+      (profileInfo) => profileInfo?.provider === "openai-codex" && profileInfo?.type === "oauth",
+    );
+    const codexScopes = decodeJwtPayload(codexProfile?.access)?.scp || [];
+    let routeOk = true;
+    let routeDetail = `default=${defaultModel || "unknown"} runtime=${runtimeId || "default"}`;
+    if (String(defaultModel || "").startsWith("openai/")) {
+      routeOk = codexScopes.includes("api.responses.write");
+      routeDetail += routeOk
+        ? " openai OAuth has responses scope"
+        : " openai default requires api.responses.write, which the stored OAuth token lacks";
+    } else if (String(defaultModel || "").startsWith("openai-codex/")) {
+      routeOk = runtimeId === "openclaw";
+      routeDetail += routeOk
+        ? " codex transport pinned through openclaw harness"
+        : " openai-codex default must be pinned to openclaw harness";
+    }
+    add("model-route", routeOk, routeDetail);
+  } catch (error) {
+    add("model-route", false, `unable to verify model route: ${error.message}`);
+  }
+
+  const logCheck = recentLogIssues();
+  add(
+    "fresh-logs",
+    logCheck.ok,
+    logCheck.detail,
+    logCheck.matches.length ? { matches: logCheck.matches } : {},
+  );
+
+  const ok = checks.every((check) => check.ok);
+  const payload = {
+    ok,
+    checkedAt: new Date().toISOString(),
+    profile,
+    stateDir,
+    port,
+    serviceUnit,
+    checks,
+  };
+  if (json) {
+    console.log(JSON.stringify(payload, null, 2));
+  } else {
+    console.log(ok ? "Daneel Core healthcheck: OK" : "Daneel Core healthcheck: FAIL");
+    for (const check of checks) {
+      console.log(`${check.ok ? "OK" : "FAIL"} ${check.name}: ${check.detail}`);
+      if (check.matches) {
+        for (const match of check.matches) {
+          console.log(`  ${match}`);
+        }
+      }
+    }
+  }
+  if (!ok) {
+    process.exit(1);
+  }
+}
+
 async function main() {
   const command = process.argv[2] || "status";
   switch (command) {
@@ -374,6 +583,9 @@ async function main() {
       return;
     case "status":
       status();
+      return;
+    case "healthcheck":
+      await healthcheck();
       return;
     case "probe":
       await probe();

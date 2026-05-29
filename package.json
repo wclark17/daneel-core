@@ -1462,6 +1462,7 @@
     "gateway:daneel-core:detached": "bash scripts/daneel-core-gateway.sh start",
     "gateway:daneel-core:probe": "bash scripts/daneel-core-gateway.sh probe",
     "gateway:daneel-core:restart": "bash scripts/daneel-core-gateway.sh restart",
+    "gateway:daneel-core:service:healthcheck": "node daneel-core.mjs healthcheck",
     "gateway:daneel-core:service:install": "node daneel-core.mjs install-service",
     "gateway:daneel-core:service:logs": "node daneel-core.mjs logs",
     "gateway:daneel-core:service:restart": "node daneel-core.mjs restart",

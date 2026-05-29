@@ -48,6 +48,7 @@ the `daneel-core` command line manager:
 ```sh
 node daneel-core.mjs install-service
 daneel-core status
+daneel-core healthcheck
 daneel-core probe
 daneel-core restart
 daneel-core logs
@@ -65,6 +66,15 @@ detached wrapper:
 
 The detached wrapper remains useful as a fallback for local testing, but the
 service is the preferred long-running runtime.
+
+`daneel-core healthcheck` is the compact operator check. It verifies that the
+user service is active and enabled, port `18790` is listening, Telegram is
+configured/running and probes cleanly, model auth is usable, the selected model
+route is compatible with the stored OAuth token, and the service log has no
+severe errors since the latest gateway ready marker. Use `--json` for
+cron-friendly output. The Telegram `connected` status is included as detail but
+is not treated as fatal when the live bot probe succeeds, because polling mode
+can briefly report disconnected right after restart.
 
 This sets `OPENCLAW_PROFILE=daneel-core` and, unless explicitly overridden,
 stores mutable runtime data under:
