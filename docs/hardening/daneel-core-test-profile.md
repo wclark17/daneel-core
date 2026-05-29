@@ -25,6 +25,21 @@ Equivalent explicit command:
 node scripts/run-node.mjs --profile daneel-core gateway
 ```
 
+For the local detached test runtime, use the wrapper instead:
+
+```sh
+pnpm gateway:daneel-core:detached
+pnpm gateway:daneel-core:status
+pnpm gateway:daneel-core:probe
+pnpm gateway:daneel-core:restart
+```
+
+The wrapper pins port `18790`, writes logs to
+`~/.openclaw-daneel-core/logs/gateway-detached.log`, records a pid file at
+`~/.openclaw-daneel-core/gateway.pid`, and prepends a small `pnpm` shim so
+startup rebuilds and local probes still work on hosts where only `corepack` is
+on `PATH`.
+
 This sets `OPENCLAW_PROFILE=daneel-core` and, unless explicitly overridden,
 stores mutable runtime data under:
 
