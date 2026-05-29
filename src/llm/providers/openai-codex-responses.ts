@@ -56,6 +56,8 @@ import { buildBaseOptions } from "./simple-options.js";
 const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
+const RETRY_AFTER_HTTP_DATE_RE =
+  /^(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT|(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), \d{2}-(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-\d{2} \d{2}:\d{2}:\d{2} GMT|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [ \d]\d \d{2}:\d{2}:\d{2} \d{4})$/;
 const CODEX_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
 const WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE = 1009;
 
@@ -337,18 +339,20 @@ export const streamOpenAICodexResponses: StreamFunction<
 
             const retryAfterMs = response.headers.get("retry-after-ms");
             if (retryAfterMs !== null) {
-              const millis = Number(retryAfterMs);
-              if (Number.isFinite(millis)) {
+              const trimmedRetryAfterMs = retryAfterMs.trim();
+              const millis = Number(trimmedRetryAfterMs);
+              if (/^\d+(?:\.\d+)?$/.test(trimmedRetryAfterMs) && Number.isFinite(millis)) {
                 delayMs = Math.max(0, millis);
               }
             } else {
               const retryAfter = response.headers.get("retry-after");
               if (retryAfter) {
-                const seconds = Number(retryAfter);
-                if (Number.isFinite(seconds)) {
+                const trimmedRetryAfter = retryAfter.trim();
+                const seconds = Number(trimmedRetryAfter);
+                if (/^\d+$/.test(trimmedRetryAfter) && Number.isFinite(seconds)) {
                   delayMs = Math.max(0, seconds * 1000);
-                } else {
-                  const date = Date.parse(retryAfter);
+                } else if (RETRY_AFTER_HTTP_DATE_RE.test(trimmedRetryAfter)) {
+                  const date = Date.parse(trimmedRetryAfter);
                   if (!Number.isNaN(date)) {
                     delayMs = Math.max(0, date - Date.now());
                   }
@@ -448,7 +452,12 @@ export const streamSimpleOpenAICodexResponses: StreamFunction<
   const clampedReasoning = options?.reasoning
     ? clampThinkingLevel(model, options.reasoning)
     : undefined;
-  const reasoningEffort = clampedReasoning === "off" ? undefined : clampedReasoning;
+  const reasoningEffort =
+    clampedReasoning === "off"
+      ? undefined
+      : clampedReasoning === "max"
+        ? "xhigh"
+        : clampedReasoning;
 
   return streamOpenAICodexResponses(model, context, {
     ...base,
@@ -1553,10 +1562,16 @@ export function extractOpenAICodexAccountId(token: string): string {
 }
 
 function createCodexRequestId(): string {
-  if (typeof globalThis.crypto?.randomUUID === "function") {
-    return globalThis.crypto.randomUUID();
+  const crypto = globalThis.crypto;
+  if (typeof crypto?.randomUUID === "function") {
+    return crypto.randomUUID();
   }
-  return `codex_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  if (typeof crypto?.getRandomValues === "function") {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    const suffix = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return `codex_${suffix}`;
+  }
+  throw new Error("Secure random request id generation is unavailable");
 }
 
 function buildBaseCodexHeaders(

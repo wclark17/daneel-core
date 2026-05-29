@@ -228,6 +228,35 @@ describe("resolveEffectiveToolInventory", () => {
     });
   });
 
+  it("groups bundled MCP tools separately from generic plugin tools", async () => {
+    const { resolveEffectiveToolInventory } = await loadHarness({
+      tools: [
+        mockTool({ name: "reproProbe__probe_tool", label: "Probe", description: "Probe MCP" }),
+      ],
+      pluginMeta: { reproProbe__probe_tool: { pluginId: "bundle-mcp" } },
+    });
+
+    const result = resolveEffectiveToolInventory({ cfg: {} });
+
+    expect(result.groups).toEqual([
+      {
+        id: "mcp",
+        label: "MCP server tools",
+        source: "mcp",
+        tools: [
+          {
+            id: "reproProbe__probe_tool",
+            label: "Probe",
+            description: "Probe MCP",
+            rawDescription: "Probe MCP",
+            source: "mcp",
+            pluginId: "bundle-mcp",
+          },
+        ],
+      },
+    ]);
+  });
+
   it("disambiguates duplicate labels with source ids", async () => {
     const { resolveEffectiveToolInventory } = await loadHarness({
       tools: [
@@ -290,7 +319,12 @@ describe("resolveEffectiveToolInventory", () => {
           name: "dofbot_move_angles",
           label: "Dofbot Move Angles",
           description: "Move robot joints",
-          parameters: { type: "array", items: { type: "number" } },
+          parameters: {
+            type: "object",
+            properties: {
+              target: { $dynamicRef: "#target" },
+            },
+          },
         }),
       ],
       pluginMeta: { dofbot_move_angles: { pluginId: "dofbot" } },
@@ -304,7 +338,7 @@ describe("resolveEffectiveToolInventory", () => {
         id: "unsupported-tool-schema:dofbot_move_angles",
         severity: "warning",
         message:
-          'Tool "dofbot_move_angles" from plugin "dofbot" has an unsupported runtime input schema (dofbot_move_angles.parameters.type must be "object") and was quarantined before model projection. Fix or disable the owner, or remove the tool from active allowlists.',
+          'Tool "dofbot_move_angles" from plugin "dofbot" has an unsupported runtime input schema (dofbot_move_angles.parameters.properties.target.$dynamicRef) and was quarantined before model projection. Fix or disable the owner, or remove the tool from active allowlists.',
       },
     ]);
   });

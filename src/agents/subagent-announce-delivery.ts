@@ -37,12 +37,14 @@ import type { EmbeddedAgentQueueMessageOptions } from "./embedded-agent-runner/r
 import type { EmbeddedAgentQueueMessageOutcome } from "./embedded-agent-runner/runs.js";
 import { mediaUrlsFromGeneratedAttachments } from "./generated-attachments.js";
 import type { AgentInternalEvent } from "./internal-events.js";
+import { isSessionWriteLockTimeoutError } from "./session-write-lock-error.js";
 import {
   callGateway,
   createBoundDeliveryRouter,
   dispatchGatewayMethodInProcess,
   getGlobalHookRunner,
   isEmbeddedAgentRunActive,
+  isEmbeddedRunAbandoned,
   getRuntimeConfig,
   formatEmbeddedAgentQueueFailureSummary,
   loadSessionStore,
@@ -73,6 +75,7 @@ type SubagentAnnounceDeliveryDeps = {
     sessionId?: string;
     isActive: boolean;
   };
+  isRequesterSessionAbandoned: (requesterSessionKey: string, sessionId?: string) => boolean;
   queueEmbeddedAgentMessageWithOutcome: (
     sessionId: string,
     text: string,
@@ -93,6 +96,8 @@ const defaultSubagentAnnounceDeliveryDeps: SubagentAnnounceDeliveryDeps = {
       isActive: Boolean(sessionId && isEmbeddedAgentRunActive(sessionId)),
     };
   },
+  isRequesterSessionAbandoned: (requesterSessionKey, sessionId) =>
+    isEmbeddedRunAbandoned({ sessionKey: requesterSessionKey, sessionId }),
   queueEmbeddedAgentMessageWithOutcome: queueEmbeddedAgentMessageWithOutcomeAsync,
   sendMessage,
 };
@@ -390,6 +395,16 @@ function isIncompleteAnnounceAgentResultError(error: unknown): boolean {
   return /(?:incomplete terminal response|code=incomplete_result)\b/i.test(message);
 }
 
+function isSessionWriteLockAnnounceAgentError(error: unknown): boolean {
+  if (isSessionWriteLockTimeoutError(error)) {
+    return true;
+  }
+  const message = summarizeDeliveryError(error);
+  return (
+    /\bSessionWriteLockTimeoutError\b/.test(message) || /\bsession file locked\b/i.test(message)
+  );
+}
+
 async function waitForAnnounceRetryDelay(ms: number, signal?: AbortSignal): Promise<void> {
   if (ms <= 0) {
     return;
@@ -569,6 +584,9 @@ async function maybeSteerSubagentAnnounce(params: {
   const { cfg, entry } = loadRequesterSessionEntry(params.requesterSessionKey);
   const canonicalKey = resolveRequesterStoreKey(cfg, params.requesterSessionKey);
   const { sessionId, isActive } = resolveRequesterSessionActivity(canonicalKey);
+  if (subagentAnnounceDeliveryDeps.isRequesterSessionAbandoned(canonicalKey, sessionId)) {
+    return { status: "none" };
+  }
   if (!sessionId || !isActive) {
     return { status: "none" };
   }
@@ -1055,6 +1073,19 @@ async function sendSubagentAnnounceDirectly(params: {
       completionRouteRequiresMessageToolDelivery ||
       (agentMediatedCompletion && expectedMediaUrls.length > 0);
     const requesterActivity = resolveRequesterSessionActivity(canonicalRequesterSessionKey);
+    if (
+      params.expectsCompletionMessage &&
+      subagentAnnounceDeliveryDeps.isRequesterSessionAbandoned(
+        canonicalRequesterSessionKey,
+        requesterActivity.sessionId,
+      )
+    ) {
+      return {
+        delivered: false,
+        path: "none",
+        error: "requester session abandoned after timeout",
+      };
+    }
     let activeRequesterWakeFailed = false;
     const tryGeneratedMediaDirectDelivery = async (announceResponse?: unknown) => {
       if (requesterActivity.isActive && !activeRequesterWakeFailed) {
@@ -1218,6 +1249,17 @@ async function sendSubagentAnnounceDirectly(params: {
         });
         if (textDelivery) {
           return textDelivery;
+        }
+      }
+      if (
+        activeRequesterWakeFailed &&
+        agentMediatedCompletion &&
+        expectedMediaUrls.length > 0 &&
+        isSessionWriteLockAnnounceAgentError(err)
+      ) {
+        const generatedMediaDelivery = await tryGeneratedMediaDirectDelivery();
+        if (generatedMediaDelivery) {
+          return generatedMediaDelivery;
         }
       }
       // The requester-agent handoff is the delivery contract for background

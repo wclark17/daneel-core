@@ -18,10 +18,16 @@ import { enforceSessionDiskBudget, type SessionDiskBudgetSweepResult } from "./d
 import { deriveSessionMetaPatch } from "./metadata.js";
 import { resolveStorePath } from "./paths.js";
 import {
+  ensureSessionStorePromptBlobsForPersistence,
+  projectSessionStoreForPersistence,
+  type SessionSkillPromptBlobProjection,
+} from "./skill-prompt-blobs.js";
+import {
   cloneSessionStoreRecord,
   dropSessionStoreObjectCache,
   dropSessionStoreSnapshotCache,
   getSerializedSessionStore,
+  getSessionStoreCacheVersion,
   invalidateSessionStoreCache,
   isSessionStoreCacheEnabled,
   setSerializedSessionStore,
@@ -108,7 +114,8 @@ export function readSessionUpdatedAt(params: {
   sessionKey: string;
 }): number | undefined {
   try {
-    return readSessionEntry(params.storePath, params.sessionKey)?.updatedAt;
+    const store = loadSessionStore(params.storePath, { clone: false });
+    return resolveSessionStoreEntry({ store, sessionKey: params.sessionKey }).existing?.updatedAt;
   } catch {
     return undefined;
   }
@@ -130,6 +137,7 @@ export type SessionMaintenanceApplyReport = {
 export {
   capEntryCount,
   getActiveSessionMaintenanceWarning,
+  getSessionStoreCacheVersion,
   pruneStaleEntries,
   resolveMaintenanceConfig,
 };
@@ -158,6 +166,14 @@ type SaveSessionStoreOptions = {
   maintenanceOverride?: Partial<ResolvedSessionMaintenanceConfig>;
   /** Fully resolved maintenance settings when the caller already has config loaded. */
   maintenanceConfig?: ResolvedSessionMaintenanceConfig;
+};
+
+type UpdateSessionStoreOptions<T> = SaveSessionStoreOptions & {
+  /**
+   * Specialized callers can prove their mutator made no changes through its result.
+   * When true, the writer-owned object cache is restored and sessions.json is untouched.
+   */
+  skipSaveWhenResult?: (result: T) => boolean;
 };
 
 type SessionEntryWorkflowOptions = {
@@ -207,6 +223,7 @@ function updateSessionStoreWriteCaches(params: {
   storePath: string;
   store: Record<string, SessionEntry>;
   serialized: string;
+  cloneSerialized?: string;
   takeOwnership?: boolean;
 }): void {
   const fileStat = getFileStatSnapshot(params.storePath);
@@ -222,6 +239,7 @@ function updateSessionStoreWriteCaches(params: {
     mtimeMs: fileStat?.mtimeMs,
     sizeBytes: fileStat?.sizeBytes,
     serialized: params.serialized,
+    cloneSerialized: params.cloneSerialized,
     takeOwnership: params.takeOwnership,
   });
   dropSessionStoreSnapshotCache(params.storePath);
@@ -243,14 +261,20 @@ function restoreUnchangedSessionStoreCache(
     invalidateSessionStoreCache(storePath);
     return;
   }
+  const serialized = getSerializedSessionStore(storePath);
   writeSessionStoreCache({
     storePath,
     store,
     mtimeMs: loadedFileStat?.mtimeMs,
     sizeBytes: loadedFileStat?.sizeBytes,
-    serialized: getSerializedSessionStore(storePath),
+    serialized,
     takeOwnership: true,
   });
+  if (serialized !== undefined) {
+    // Keep hydrated blob prompts in the object cache, but preserve the disk JSON
+    // comparison string so repeated no-op saves do not rewrite sessions.json.
+    setSerializedSessionStore(storePath, serialized, loadedFileStat?.sizeBytes);
+  }
 }
 
 function loadMutableSessionStoreForWriter(storePath: string): Record<string, SessionEntry> {
@@ -493,12 +517,20 @@ async function saveSessionStoreUnlocked(
   }
 
   await fs.promises.mkdir(path.dirname(storePath), { recursive: true });
-  const json = JSON.stringify(store, null, 2);
+  const persisted = projectSessionStoreForPersistence({ storePath, store });
+  const promptBlobs = [...persisted.promptBlobs.values()];
+  const json = JSON.stringify(persisted.store, null, 2);
+  const cloneSerialized = persisted.changed ? undefined : json;
   if (getSerializedSessionStore(storePath) === json) {
+    await ensureSessionStorePromptBlobsForPersistence({
+      storePath,
+      promptBlobs,
+    });
     updateSessionStoreWriteCaches({
       storePath,
       store,
       serialized: json,
+      cloneSerialized,
       takeOwnership: opts?.takeCacheOwnership,
     });
     return;
@@ -512,6 +544,8 @@ async function saveSessionStoreUnlocked(
           storePath,
           store,
           serialized: json,
+          cloneSerialized,
+          promptBlobs,
           takeOwnership: opts?.takeCacheOwnership,
         });
         return;
@@ -537,6 +571,8 @@ async function saveSessionStoreUnlocked(
       storePath,
       store,
       serialized: json,
+      cloneSerialized,
+      promptBlobs,
       takeOwnership: opts?.takeCacheOwnership,
     });
   } catch (err) {
@@ -550,6 +586,8 @@ async function saveSessionStoreUnlocked(
           storePath,
           store,
           serialized: json,
+          cloneSerialized,
+          promptBlobs,
           takeOwnership: opts?.takeCacheOwnership,
         });
       } catch (err2) {
@@ -579,12 +617,16 @@ export async function saveSessionStore(
 export async function updateSessionStore<T>(
   storePath: string,
   mutator: (store: Record<string, SessionEntry>) => Promise<T> | T,
-  opts?: SaveSessionStoreOptions,
+  opts?: UpdateSessionStoreOptions<T>,
 ): Promise<T> {
   return await runExclusiveSessionStoreWrite(storePath, async () => {
     const store = loadMutableSessionStoreForWriter(storePath);
     const previousAcpByKey = collectAcpMetadataSnapshot(store);
     const result = await mutator(store);
+    if (opts?.skipSaveWhenResult?.(result)) {
+      restoreUnchangedSessionStoreCache(storePath, store);
+      return result;
+    }
     preserveExistingAcpMetadata({
       previousAcpByKey,
       nextStore: store,
@@ -664,6 +706,8 @@ async function writeSessionStoreAtomic(params: {
   storePath: string;
   store: Record<string, SessionEntry>;
   serialized: string;
+  cloneSerialized?: string;
+  promptBlobs: Iterable<SessionSkillPromptBlobProjection>;
   takeOwnership?: boolean;
 }): Promise<void> {
   // Stage the temp as `sessions.json.<pid>.<uuid>.tmp` (not the generic
@@ -673,11 +717,18 @@ async function writeSessionStoreAtomic(params: {
     durable: false,
     mode: 0o600,
     tempPrefix: path.basename(params.storePath),
+    beforeRename: async () => {
+      await ensureSessionStorePromptBlobsForPersistence({
+        storePath: params.storePath,
+        promptBlobs: params.promptBlobs,
+      });
+    },
   });
   updateSessionStoreWriteCaches({
     storePath: params.storePath,
     store: params.store,
     serialized: params.serialized,
+    cloneSerialized: params.cloneSerialized,
     takeOwnership: params.takeOwnership,
   });
 }
@@ -690,11 +741,13 @@ async function persistResolvedSessionEntry(params: {
   previousAcpByKey?: Map<string, NonNullable<SessionEntry["acp"]>>;
   skipMaintenance?: boolean;
   takeCacheOwnership?: boolean;
+  returnDetached?: boolean;
 }): Promise<SessionEntry> {
   const entryUnchanged =
     params.resolved.legacyKeys.length === 0 &&
     sessionEntriesHaveSameSerializedForm(params.resolved.existing, params.next);
-  params.store[params.resolved.normalizedKey] = params.next;
+  const next = params.takeCacheOwnership ? cloneSessionEntry(params.next) : params.next;
+  params.store[params.resolved.normalizedKey] = next;
   for (const legacyKey of params.resolved.legacyKeys) {
     delete params.store[legacyKey];
   }
@@ -710,7 +763,7 @@ async function persistResolvedSessionEntry(params: {
     skipSerializeForUnchangedStore: entryUnchanged,
     takeCacheOwnership: params.takeCacheOwnership,
   });
-  return entryUnchanged ? cloneSessionEntry(params.next) : params.next;
+  return entryUnchanged || params.returnDetached ? cloneSessionEntry(next) : next;
 }
 
 export async function updateSessionStoreEntry(params: {
@@ -739,7 +792,8 @@ export async function updateSessionStoreEntry(params: {
       resolved,
       next,
       skipMaintenance: params.skipMaintenance,
-      takeCacheOwnership: params.takeCacheOwnership,
+      takeCacheOwnership: params.takeCacheOwnership ?? true,
+      returnDetached: params.takeCacheOwnership !== true,
     });
   });
 }
@@ -766,7 +820,8 @@ export async function applySessionStoreEntryPatch(params: {
       resolved,
       next,
       skipMaintenance: params.skipMaintenance,
-      takeCacheOwnership: params.takeCacheOwnership,
+      takeCacheOwnership: params.takeCacheOwnership ?? true,
+      returnDetached: params.takeCacheOwnership !== true,
     });
   });
 }
@@ -804,6 +859,8 @@ export async function patchSessionEntry(
       store,
       resolved,
       next,
+      takeCacheOwnership: true,
+      returnDetached: true,
     });
   });
 }
@@ -828,6 +885,7 @@ export async function upsertSessionEntry(
       store,
       resolved,
       next,
+      takeCacheOwnership: true,
     });
   });
 }
@@ -860,6 +918,8 @@ export async function recordSessionMetaFromInbound(params: {
           resolved,
           next: existing,
           previousAcpByKey,
+          takeCacheOwnership: true,
+          returnDetached: true,
         });
       }
       await saveSessionStoreUnlocked(storePath, store, {
@@ -886,6 +946,8 @@ export async function recordSessionMetaFromInbound(params: {
       resolved,
       next,
       previousAcpByKey,
+      takeCacheOwnership: true,
+      returnDetached: true,
     });
   });
 }
@@ -982,6 +1044,8 @@ export async function updateLastRoute(params: {
       store,
       resolved,
       next,
+      takeCacheOwnership: true,
+      returnDetached: true,
     });
   });
 }

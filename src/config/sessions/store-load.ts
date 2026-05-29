@@ -10,8 +10,10 @@ import {
   normalizeSessionDeliveryFields,
 } from "../../utils/delivery-context.shared.js";
 import { getFileStatSnapshot } from "../cache-utils.js";
+import { hydrateSessionStoreSkillPromptRefs } from "./skill-prompt-blobs.js";
 import {
   cloneSessionStoreRecord,
+  cloneSessionStoreSnapshotEntry,
   cloneSessionStoreSnapshot,
   internSessionEntryLargeStrings,
   isSessionStoreCacheEnabled,
@@ -398,9 +400,10 @@ export function loadSessionStore(
     }
   }
 
+  const hydratedPromptRefs = hydrateSessionStoreSkillPromptRefs({ storePath, store });
   const migrated = applySessionStoreMigrations(store);
   const normalized = normalizeSessionStore(store);
-  if (migrated || normalized) {
+  if (hydratedPromptRefs || migrated || normalized) {
     serializedFromDisk = undefined;
   }
   if (opts.runMaintenance) {
@@ -448,6 +451,7 @@ export function loadSessionStore(
       mtimeMs,
       sizeBytes: fileStat?.sizeBytes,
       serialized: serializedFromDisk,
+      cloneSerialized: serializedFromDisk,
       takeOwnership: serializedFromDisk !== undefined,
     });
   }
@@ -485,12 +489,12 @@ export function readSessionEntry(
   storePath: string,
   sessionKey: string,
 ): SessionStoreSnapshotEntry | undefined {
-  const snapshot = readSessionStoreSnapshot(storePath);
+  const store = loadSessionStore(storePath, { clone: false });
   const resolved = resolveSessionStoreEntry({
-    store: snapshot as Record<string, SessionEntry>,
+    store,
     sessionKey,
   });
-  return resolved.existing as SessionStoreSnapshotEntry | undefined;
+  return resolved.existing ? cloneSessionStoreSnapshotEntry(resolved.existing) : undefined;
 }
 
 export function readSessionEntries(storePath: string): SessionStoreSnapshotEntries {
