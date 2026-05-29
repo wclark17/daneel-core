@@ -3,6 +3,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -106,6 +107,27 @@ function decodeJwtPayload(token) {
   } catch {
     return null;
   }
+}
+
+function checkTcpPort(host, portNumber, timeoutMs = 1500) {
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ host, port: portNumber });
+    let settled = false;
+    const finish = (ok, detail) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      socket.destroy();
+      resolve({ ok, detail });
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => finish(true, `tcp connect ok ${host}:${portNumber}`));
+    socket.once("timeout", () => finish(false, `tcp connect timeout ${host}:${portNumber}`));
+    socket.once("error", (error) =>
+      finish(false, `${host}:${portNumber} ${error.code || error.message}`),
+    );
+  });
 }
 
 async function ensureRuntimePath() {
@@ -432,12 +454,13 @@ async function healthcheck() {
     enabled.stdout.trim() || enabled.stderr.trim() || `exit ${enabled.status}`,
   );
 
-  const listener = runOptional("ss", ["-ltnp", `sport = :${port}`]);
-  add(
-    "port",
-    listener.ok && listener.stdout.includes(`:${port}`),
-    listener.stdout.trim() || listener.stderr.trim() || `no listener on ${port}`,
-  );
+  const portNumber = Number(port);
+  if (!Number.isInteger(portNumber) || portNumber <= 0) {
+    add("port", false, `invalid port ${port}`);
+  } else {
+    const listener = await checkTcpPort("127.0.0.1", portNumber);
+    add("port", listener.ok, listener.detail);
+  }
 
   const channel = parseJsonRun(
     process.execPath,
