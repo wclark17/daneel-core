@@ -22,6 +22,9 @@ const serviceLog = path.join(logDir, "gateway-service.log");
 const detachedLog = path.join(logDir, "gateway-detached.log");
 const unitPath = path.join(homeDir, ".config", "systemd", "user", serviceUnit);
 const commandLink = path.join(homeDir, ".local", "bin", "daneel-core");
+const safeUpdateScript =
+  process.env.OPENCLAW_DANEEL_CORE_SAFE_UPDATE_SCRIPT ||
+  "/usr/local/share/work/daneel-workspace/skills/daneel-core-safe-update/scripts/daneel_core_safe_update.sh";
 
 function usage() {
   console.log(`Usage: daneel-core <command>
@@ -34,6 +37,8 @@ Commands:
   restart              Restart the systemd service
   status               Show service status and port listener state
   healthcheck          Check service, port, Telegram, model auth, and fresh logs
+  update [options]     Fetch/merge upstream, stop Core, build, restart, and healthcheck
+  rollback [target]    Restore a rollback bundle created by update, then restart/healthcheck
   probe                Probe OpenClaw channels for the Daneel Core profile
   logs [lines]         Show recent service logs
   follow-logs          Follow service logs
@@ -68,6 +73,22 @@ function runOptional(command, args, options = {}) {
     stderr: result.stderr || "",
     status: result.status,
   };
+}
+
+function runSafeUpdate(mode, args) {
+  if (!fs.existsSync(safeUpdateScript)) {
+    console.error(`Safe update script not found: ${safeUpdateScript}`);
+    process.exit(1);
+  }
+  run("bash", [safeUpdateScript, mode, ...args], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      DANEEL_CORE_REPO: repoRoot,
+      DANEEL_CORE_STATE_DIR: stateDir,
+      DANEEL_CORE_CLI: commandLink,
+    },
+  });
 }
 
 function printOptional(command, args, options = {}) {
@@ -614,6 +635,12 @@ async function main() {
       return;
     case "healthcheck":
       await healthcheck();
+      return;
+    case "update":
+      runSafeUpdate("update", process.argv.slice(3));
+      return;
+    case "rollback":
+      runSafeUpdate("rollback", process.argv.slice(3));
       return;
     case "probe":
       await probe();
