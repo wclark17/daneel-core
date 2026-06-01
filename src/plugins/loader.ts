@@ -1963,6 +1963,7 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
         left,
         right,
         manifestByRoot,
+        normalized,
         provenance,
         env,
       });
@@ -2893,6 +2894,7 @@ export async function loadOpenClawPluginCliRegistry(
       left,
       right,
       manifestByRoot,
+      normalized,
       provenance,
       env,
     });

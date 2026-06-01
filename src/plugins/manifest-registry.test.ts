@@ -485,7 +485,7 @@ describe("loadPluginManifestRegistry", () => {
     );
   });
 
-  it("lets config-loaded plugins replace bundled duplicates", () => {
+  it("keeps bundled plugins over config duplicates unless externalOverride is set", () => {
     const bundledDir = makeTempDir();
     const configDir = makeTempDir();
     const manifest = { id: "config-shadow", configSchema: { type: "object" } };
@@ -504,6 +504,37 @@ describe("loadPluginManifestRegistry", () => {
         origin: "config",
       }),
     ]);
+
+    expect(countDuplicateWarnings(registry)).toBe(1);
+    expect(registry.plugins).toHaveLength(1);
+    expect(registry.plugins[0]?.origin).toBe("bundled");
+    const warning = registry.diagnostics.find((diag) => diag.pluginId === "config-shadow");
+    expect(warning?.source).toBe(path.join(configDir, "index.ts"));
+    expect(warning?.message).toContain("externalOverride=true");
+  });
+
+  it("lets config-loaded plugins intentionally replace bundled duplicates", () => {
+    const bundledDir = makeTempDir();
+    const configDir = makeTempDir();
+    const manifest = { id: "config-shadow", configSchema: { type: "object" } };
+    writeManifest(bundledDir, manifest);
+    writeManifest(configDir, manifest);
+
+    const registry = loadPluginManifestRegistry({
+      config: { plugins: { entries: { "config-shadow": { externalOverride: true } } } },
+      candidates: [
+        createPluginCandidate({
+          idHint: "config-shadow",
+          rootDir: bundledDir,
+          origin: "bundled",
+        }),
+        createPluginCandidate({
+          idHint: "config-shadow",
+          rootDir: configDir,
+          origin: "config",
+        }),
+      ],
+    });
 
     expect(countDuplicateWarnings(registry)).toBe(1);
     expect(registry.plugins).toHaveLength(1);
@@ -569,7 +600,7 @@ describe("loadPluginManifestRegistry", () => {
     expectNoRegistryDiagnosticContains(allowlistRegistry, "without channelConfigs metadata");
   });
 
-  it("suppresses duplicate warnings for explicit installed globals overriding bundled plugins", () => {
+  it("prefers bundled plugins over explicit installed globals unless externalOverride is set", () => {
     const bundledDir = makeTempDir();
     const globalDir = makeTempDir();
     const manifest = { id: "zalouser", configSchema: { type: "object" } };
@@ -577,6 +608,41 @@ describe("loadPluginManifestRegistry", () => {
     writeManifest(globalDir, manifest);
 
     const registry = loadPluginManifestRegistry({
+      installRecords: {
+        zalouser: {
+          source: "npm",
+          installPath: globalDir,
+        },
+      },
+      candidates: [
+        createPluginCandidate({
+          idHint: "zalouser",
+          rootDir: bundledDir,
+          origin: "bundled",
+        }),
+        createPluginCandidate({
+          idHint: "zalouser",
+          rootDir: globalDir,
+          origin: "global",
+        }),
+      ],
+    });
+
+    expect(countDuplicateWarnings(registry)).toBe(1);
+    expect(registry.plugins).toHaveLength(1);
+    expect(registry.plugins[0]?.origin).toBe("bundled");
+    expectRegistryDiagnosticContains(registry, "externalOverride=true");
+  });
+
+  it("suppresses duplicate warnings for explicit installed globals intentionally overriding bundled plugins", () => {
+    const bundledDir = makeTempDir();
+    const globalDir = makeTempDir();
+    const manifest = { id: "zalouser", configSchema: { type: "object" } };
+    writeManifest(bundledDir, manifest);
+    writeManifest(globalDir, manifest);
+
+    const registry = loadPluginManifestRegistry({
+      config: { plugins: { entries: { zalouser: { externalOverride: true } } } },
       installRecords: {
         zalouser: {
           source: "npm",
@@ -637,7 +703,7 @@ describe("loadPluginManifestRegistry", () => {
     expect(registry.plugins[0]?.origin).toBe("bundled");
   });
 
-  it("suppresses duplicate warnings when the installed global is discovered before bundled", () => {
+  it("keeps bundled plugins when the installed global is discovered before bundled", () => {
     const bundledDir = makeTempDir();
     const globalDir = makeTempDir();
     const manifest = { id: "zalouser", configSchema: { type: "object" } };
@@ -665,9 +731,9 @@ describe("loadPluginManifestRegistry", () => {
       ],
     });
 
-    expect(countDuplicateWarnings(registry)).toBe(0);
+    expect(countDuplicateWarnings(registry)).toBe(1);
     expect(registry.plugins).toHaveLength(1);
-    expect(registry.plugins[0]?.origin).toBe("global");
+    expect(registry.plugins[0]?.origin).toBe("bundled");
   });
 
   it("marks official installed npm globals as trusted official installs", () => {

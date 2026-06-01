@@ -38,6 +38,18 @@ const nonBooleanConfigCases = [
       },
     },
   },
+  {
+    name: "plugins.entries.*.externalOverride",
+    config: {
+      plugins: {
+        entries: {
+          codex: {
+            externalOverride: "yes",
+          },
+        },
+      },
+    },
+  },
 ];
 
 function issuePaths(issues: Array<{ path: string }>): string[] {
@@ -56,6 +68,21 @@ describe("boolean config validation", () => {
   it.each(nonBooleanConfigCases)("rejects non-boolean values for $name", ({ config }) => {
     const result = OpenClawSchema.safeParse(config);
     expect(result.success).toBe(false);
+  });
+});
+
+describe("plugins.entries.*.externalOverride", () => {
+  it.each([true, false])("accepts externalOverride=%s", (externalOverride) => {
+    const result = OpenClawSchema.safeParse({
+      plugins: {
+        entries: {
+          codex: {
+            externalOverride,
+          },
+        },
+      },
+    });
+    expect(result.success).toBe(true);
   });
 });
 

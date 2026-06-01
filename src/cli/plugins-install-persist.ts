@@ -68,6 +68,23 @@ export type ConfigSnapshotForInstallPersist = {
   baseHash: string | undefined;
 };
 
+function markBundledOverrideIntent(cfg: OpenClawConfig, pluginId: string): OpenClawConfig {
+  const currentEntry = cfg.plugins?.entries?.[pluginId] ?? {};
+  return {
+    ...cfg,
+    plugins: {
+      ...cfg.plugins,
+      entries: {
+        ...cfg.plugins?.entries,
+        [pluginId]: {
+          ...currentEntry,
+          externalOverride: true,
+        },
+      },
+    },
+  };
+}
+
 function sourceMatchesInstalledPath(params: {
   activeSource: string;
   installedSource: string;
@@ -187,6 +204,7 @@ export async function persistPluginInstall(params: {
   install: Omit<PluginInstallUpdate, "pluginId">;
   enable?: boolean;
   invalidateRuntimeCache?: boolean;
+  externalOverride?: boolean;
   successMessage?: string;
   warningMessage?: string;
   runtime?: RuntimeEnv;
@@ -205,6 +223,9 @@ export async function persistPluginInstall(params: {
       : enablePluginInConfig(installConfig, params.pluginId, {
           updateChannelConfig: false,
         }).config;
+  if (params.externalOverride === true) {
+    next = markBundledOverrideIntent(next, params.pluginId);
+  }
   const installRecords = await tracePluginLifecyclePhaseAsync(
     "install records load",
     () => loadInstalledPluginIndexInstallRecords(),

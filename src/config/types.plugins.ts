@@ -1,6 +1,11 @@
 // Defines plugin entry and install configuration types.
 export type PluginEntryConfig = {
   enabled?: boolean;
+  /**
+   * Allow this entry to intentionally shadow a bundled plugin with the same id.
+   * Keep unset for normal user plugins; only set true when replacing a shipped runtime plugin.
+   */
+  externalOverride?: boolean;
   hooks?: {
     /** Controls prompt mutation via before_prompt_build and prompt fields from legacy before_agent_start. */
     allowPromptInjection?: boolean;

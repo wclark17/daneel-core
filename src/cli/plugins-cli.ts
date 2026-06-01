@@ -150,6 +150,11 @@ export function registerPluginsCli(program: Command) {
     )
     .option("-l, --link", "Link a local path instead of copying", false)
     .option("--force", "Overwrite an existing installed plugin or hook pack", false)
+    .option(
+      "--override-bundled",
+      "Mark this install as an intentional replacement for a bundled plugin with the same id",
+      false,
+    )
     .option("--pin", "Record npm installs as exact resolved <name>@<version>", false)
     .option(
       "--dangerously-force-unsafe-install",
@@ -167,6 +172,7 @@ export function registerPluginsCli(program: Command) {
           dangerouslyForceUnsafeInstall?: boolean;
           force?: boolean;
           link?: boolean;
+          overrideBundled?: boolean;
           pin?: boolean;
           marketplace?: string;
         },

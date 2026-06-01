@@ -14,6 +14,10 @@ import { isBlockedObjectKey } from "../infra/prototype-keys.js";
 import { resolveUserPath } from "../utils.js";
 import { resolveCompatibilityHostVersion } from "../version.js";
 import { loadBundleManifest } from "./bundle-manifest.js";
+import {
+  allowsBundledPluginOverride,
+  isBundledRuntimePluginCandidate,
+} from "./bundled-override-policy.js";
 import { normalizePluginsConfigWithResolver } from "./config-policy.js";
 import { isBundledPluginInsideDevSourceRoot } from "./dev-source-root.js";
 import {
@@ -864,9 +868,20 @@ function resolveDuplicatePrecedenceRank(params: {
   pluginId: string;
   candidate: PluginCandidate;
   config?: OpenClawConfig;
+  normalized: ReturnType<typeof normalizePluginsConfigWithResolver>;
   env: NodeJS.ProcessEnv;
   installRecords: Record<string, PluginInstallRecord>;
 }): number {
+  if (
+    isBundledRuntimePluginCandidate({ candidate: params.candidate, env: params.env }) &&
+    !allowsBundledPluginOverride({
+      pluginId: params.pluginId,
+      config: params.config,
+      normalized: params.normalized,
+    })
+  ) {
+    return -1;
+  }
   if (params.candidate.origin === "config") {
     return 0;
   }
@@ -906,9 +921,21 @@ function isIntentionalInstalledBundledDuplicate(params: {
   left: PluginCandidate;
   right: PluginCandidate;
   config?: OpenClawConfig;
+  normalized: ReturnType<typeof normalizePluginsConfigWithResolver>;
   env: NodeJS.ProcessEnv;
   installRecords: Record<string, PluginInstallRecord>;
 }): boolean {
+  if (
+    !allowsBundledPluginOverride({
+      pluginId: params.pluginId,
+      config: params.config,
+      normalized: params.normalized,
+    }) &&
+    (isBundledRuntimePluginCandidate({ candidate: params.left, env: params.env }) ||
+      isBundledRuntimePluginCandidate({ candidate: params.right, env: params.env }))
+  ) {
+    return false;
+  }
   const leftIsInstalled = matchesInstalledPluginRecord({
     pluginId: params.pluginId,
     candidate: params.left,
@@ -1150,6 +1177,7 @@ export function loadPluginManifestRegistry(
         pluginId: manifest.id,
         candidate,
         config,
+        normalized,
         env,
         installRecords: getInstallRecords(),
       });
@@ -1157,6 +1185,7 @@ export function loadPluginManifestRegistry(
         pluginId: manifest.id,
         candidate: existing.candidate,
         config,
+        normalized,
         env,
         installRecords: getInstallRecords(),
       });
@@ -1174,6 +1203,7 @@ export function loadPluginManifestRegistry(
           left: candidate,
           right: existing.candidate,
           config,
+          normalized,
           env,
           installRecords: getInstallRecords(),
         })
@@ -1188,9 +1218,12 @@ export function loadPluginManifestRegistry(
         pluginId: manifest.id,
         source: overriddenCandidate.source,
         message:
-          winnerCandidate.origin === "config"
-            ? `duplicate plugin id resolved by explicit config-selected plugin; ${overriddenCandidate.origin} plugin will be overridden by config plugin (${winnerCandidate.source})`
-            : `duplicate plugin id detected; ${overriddenCandidate.origin} plugin will be overridden by ${winnerCandidate.origin} plugin (${winnerCandidate.source})`,
+          isBundledRuntimePluginCandidate({ candidate: winnerCandidate, env }) &&
+          !allowsBundledPluginOverride({ pluginId: manifest.id, config, normalized })
+            ? `duplicate plugin id detected; ${overriddenCandidate.origin} plugin will be overridden by bundled plugin (${winnerCandidate.source}). Set plugins.entries.${manifest.id}.externalOverride=true only if this profile should intentionally replace the bundled runtime plugin.`
+            : winnerCandidate.origin === "config"
+              ? `duplicate plugin id resolved by explicit config-selected plugin; ${overriddenCandidate.origin} plugin will be overridden by config plugin (${winnerCandidate.source})`
+              : `duplicate plugin id detected; ${overriddenCandidate.origin} plugin will be overridden by ${winnerCandidate.origin} plugin (${winnerCandidate.source})`,
       });
       continue;
     }
