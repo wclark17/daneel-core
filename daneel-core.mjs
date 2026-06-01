@@ -118,6 +118,26 @@ function readJsonFile(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
+function installedCodexHarnessSupportsOpenAi() {
+  const harnessFile = path.join(
+    stateDir,
+    "npm",
+    "node_modules",
+    "@openclaw",
+    "codex",
+    "dist",
+    "harness.js",
+  );
+  if (!fs.existsSync(harnessFile)) {
+    return { installed: false, supports: true };
+  }
+  const source = fs.readFileSync(harnessFile, "utf8");
+  return {
+    installed: true,
+    supports: /["']openai["']/.test(source),
+  };
+}
+
 function decodeJwtPayload(token) {
   const parts = String(token || "").split(".");
   if (parts.length < 2) {
@@ -549,8 +569,13 @@ async function healthcheck() {
     let routeDetail = `default=${defaultModel || "unknown"} runtime=${runtimeId || "default"}`;
     if (String(defaultModel || "").startsWith("openai/")) {
       if (runtimeId === "codex") {
-        routeOk = true;
-        routeDetail += " openai model pinned through codex harness";
+        const codexHarness = installedCodexHarnessSupportsOpenAi();
+        routeOk = codexHarness.supports;
+        routeDetail += codexHarness.installed
+          ? routeOk
+            ? " openai model pinned through installed codex harness"
+            : " installed codex plugin is stale and rejects openai/* models; run daneel-core update --build-current"
+          : " openai model pinned through bundled codex harness";
       } else {
         routeOk = codexScopes.includes("api.responses.write");
         routeDetail += routeOk
