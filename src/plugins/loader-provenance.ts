@@ -1,6 +1,11 @@
 import { normalizeTrimmedStringList } from "@openclaw/normalization-core/string-normalization";
 import type { PluginInstallRecord } from "../config/types.plugins.js";
 import { resolveUserPath } from "../utils.js";
+import {
+  allowsBundledPluginOverride,
+  isBundledRuntimePluginCandidate,
+} from "./bundled-override-policy.js";
+import type { NormalizedPluginsConfig } from "./config-normalization-shared.js";
 import { isBundledPluginInsideDevSourceRoot } from "./dev-source-root.js";
 import type { PluginCandidate } from "./discovery.js";
 import { loadInstalledPluginIndexInstallRecordsSync } from "./installed-plugin-index-records.js";
@@ -135,11 +140,19 @@ function matchesExplicitInstallRule(params: {
 function resolveCandidateDuplicateRank(params: {
   candidate: PluginCandidate;
   manifestByRoot: Map<string, PluginManifestRecord>;
+  normalized: Pick<NormalizedPluginsConfig, "entries">;
   provenance: PluginProvenanceIndex;
   env: NodeJS.ProcessEnv;
 }): number {
   const manifestRecord = params.manifestByRoot.get(params.candidate.rootDir);
   const pluginId = manifestRecord?.id;
+  if (
+    pluginId &&
+    isBundledRuntimePluginCandidate({ candidate: params.candidate, env: params.env }) &&
+    !allowsBundledPluginOverride({ pluginId, normalized: params.normalized })
+  ) {
+    return -1;
+  }
   const isExplicitInstall =
     params.candidate.origin === "global" &&
     pluginId !== undefined &&
@@ -179,6 +192,7 @@ export function compareDuplicateCandidateOrder(params: {
   left: PluginCandidate;
   right: PluginCandidate;
   manifestByRoot: Map<string, PluginManifestRecord>;
+  normalized: Pick<NormalizedPluginsConfig, "entries">;
   provenance: PluginProvenanceIndex;
   env: NodeJS.ProcessEnv;
 }): number {
@@ -191,12 +205,14 @@ export function compareDuplicateCandidateOrder(params: {
     resolveCandidateDuplicateRank({
       candidate: params.left,
       manifestByRoot: params.manifestByRoot,
+      normalized: params.normalized,
       provenance: params.provenance,
       env: params.env,
     }) -
     resolveCandidateDuplicateRank({
       candidate: params.right,
       manifestByRoot: params.manifestByRoot,
+      normalized: params.normalized,
       provenance: params.provenance,
       env: params.env,
     })

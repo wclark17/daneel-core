@@ -428,6 +428,7 @@ describe("plugins cli install", () => {
     expect(helpText).toContain("--force");
     expect(helpText).toContain("Overwrite an existing installed plugin or");
     expect(helpText).toContain("hook pack");
+    expect(helpText).toContain("--override-bundled");
   });
 
   it("refuses plugin installs in Nix mode before installer side effects", async () => {
@@ -1002,6 +1003,25 @@ describe("plugins cli install", () => {
     expect(persistedInstallRecord("demo").spec).toBe("demo");
     expect(persistedInstallRecord("demo").installPath).toBe(cliInstallPath("demo"));
     expect(writeConfigFile).toHaveBeenCalledWith(enabledCfg);
+  });
+
+  it("records explicit bundled override intent when requested", async () => {
+    const cfg = createEmptyPluginConfig();
+    loadConfig.mockReturnValue(cfg);
+    installPluginFromNpmSpec.mockResolvedValue(createNpmPluginInstallResult("codex"));
+
+    await runPluginsCommand(["plugins", "install", "npm:@openclaw/codex", "--override-bundled"]);
+
+    expect(npmInstallCall().spec).toBe("@openclaw/codex");
+    expect(writeConfigFile).toHaveBeenCalledWith({
+      plugins: {
+        entries: {
+          codex: {
+            externalOverride: true,
+          },
+        },
+      },
+    });
   });
 
   it("installs npm-pack archives through npm install semantics", async () => {

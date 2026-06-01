@@ -21,6 +21,7 @@ type PluginInstallActionOptions = {
   dangerouslyForceUnsafeInstall?: boolean;
   force?: boolean;
   link?: boolean;
+  overrideBundled?: boolean;
   pin?: boolean;
   marketplace?: string;
 };

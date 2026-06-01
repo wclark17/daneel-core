@@ -308,6 +308,7 @@ async function tryInstallPluginOrHookPackFromNpmSpec(params: {
   extensionsDir: string;
   expectedPluginId?: string;
   expectedIntegrity?: string;
+  externalOverride?: boolean;
   trustedSourceLinkedOfficialInstall?: boolean;
   runtime?: RuntimeEnv;
 }): Promise<{ ok: true } | { ok: false }> {
@@ -375,6 +376,7 @@ async function tryInstallPluginOrHookPackFromNpmSpec(params: {
     snapshot: params.snapshot,
     pluginId: result.pluginId,
     install: installRecord,
+    externalOverride: params.externalOverride,
     runtime: params.runtime,
   });
   return { ok: true };
@@ -386,6 +388,7 @@ async function tryInstallPluginFromNpmPackArchive(params: {
   archivePath: string;
   safetyOverrides: InstallSafetyOverrides;
   extensionsDir: string;
+  externalOverride?: boolean;
   runtime?: RuntimeEnv;
 }): Promise<{ ok: true } | { ok: false }> {
   const result = await installPluginFromNpmPackArchive({
@@ -423,6 +426,7 @@ async function tryInstallPluginFromNpmPackArchive(params: {
       ...(result.npmResolution?.shasum ? { npmShasum: result.npmResolution.shasum } : {}),
       ...(result.npmTarballName ? { npmTarballName: result.npmTarballName } : {}),
     },
+    externalOverride: params.externalOverride,
     runtime: params.runtime,
   });
   return { ok: true };
@@ -434,6 +438,7 @@ async function tryInstallPluginFromGitSpec(params: {
   spec: string;
   safetyOverrides: InstallSafetyOverrides;
   extensionsDir: string;
+  externalOverride?: boolean;
   runtime?: RuntimeEnv;
 }): Promise<{ ok: true } | { ok: false }> {
   const result = await installPluginFromGitSpec({
@@ -461,6 +466,7 @@ async function tryInstallPluginFromGitSpec(params: {
       gitRef: result.git.ref,
       gitCommit: result.git.commit,
     },
+    externalOverride: params.externalOverride,
     runtime: params.runtime,
   });
   return { ok: true };
@@ -564,6 +570,7 @@ export async function runPluginInstallCommand(params: {
   opts: InstallSafetyOverrides & {
     force?: boolean;
     link?: boolean;
+    overrideBundled?: boolean;
     pin?: boolean;
     marketplace?: string;
   };
@@ -591,6 +598,10 @@ export async function runPluginInstallCommand(params: {
       params.opts.marketplace ?? (shorthand?.ok ? shorthand.marketplaceSource : undefined),
   };
   if (opts.marketplace) {
+    if (opts.overrideBundled) {
+      runtime.error("--override-bundled is not supported with --marketplace installs.");
+      return runtime.exit(1);
+    }
     if (opts.link) {
       runtime.error(
         `--link is not supported with --marketplace. Remove --link, or install a local path with ${formatCliCommand("openclaw plugins install --link <path>")}.`,
@@ -676,6 +687,7 @@ export async function runPluginInstallCommand(params: {
         marketplaceSource: result.marketplaceSource,
         marketplacePlugin: result.marketplacePlugin,
       },
+      externalOverride: Boolean(opts.overrideBundled),
       runtime,
     });
     return;
@@ -736,6 +748,7 @@ export async function runPluginInstallCommand(params: {
           installPath: resolved,
           version: probe.version,
         },
+        externalOverride: Boolean(opts.overrideBundled),
         successMessage: `Linked plugin path: ${shortenHomePath(resolved)}`,
         runtime,
       });
@@ -778,6 +791,7 @@ export async function runPluginInstallCommand(params: {
         installPath: result.targetDir,
         version: result.version,
       },
+      externalOverride: Boolean(opts.overrideBundled),
       runtime,
     });
     return;
@@ -810,6 +824,7 @@ export async function runPluginInstallCommand(params: {
       safetyOverrides,
       allowBundledFallback: false,
       extensionsDir,
+      externalOverride: Boolean(opts.overrideBundled),
       ...(officialNpmTrust
         ? {
             expectedPluginId: officialNpmTrust.pluginId,
@@ -841,6 +856,7 @@ export async function runPluginInstallCommand(params: {
       archivePath: npmPackPath,
       safetyOverrides,
       extensionsDir,
+      externalOverride: Boolean(opts.overrideBundled),
       runtime,
     });
     if (!npmPackResult.ok) {
@@ -856,6 +872,7 @@ export async function runPluginInstallCommand(params: {
       spec: raw,
       safetyOverrides,
       extensionsDir,
+      externalOverride: Boolean(opts.overrideBundled),
       runtime,
     });
     if (!gitResult.ok) {
@@ -934,6 +951,7 @@ export async function runPluginInstallCommand(params: {
       expectedPluginId: officialExternalPlan.pluginId,
       expectedIntegrity: officialExternalPlan.expectedIntegrity,
       trustedSourceLinkedOfficialInstall: true,
+      externalOverride: Boolean(opts.overrideBundled),
       runtime,
     });
     if (!npmResult.ok) {
@@ -964,6 +982,7 @@ export async function runPluginInstallCommand(params: {
         spec: raw,
         installPath: result.targetDir,
       },
+      externalOverride: Boolean(opts.overrideBundled),
       runtime,
     });
     return;
@@ -981,6 +1000,7 @@ export async function runPluginInstallCommand(params: {
     safetyOverrides,
     allowBundledFallback: true,
     extensionsDir,
+    externalOverride: Boolean(opts.overrideBundled),
     ...(officialNpmTrust
       ? {
           expectedPluginId: officialNpmTrust.pluginId,

@@ -20,6 +20,7 @@ export type NormalizedPluginsConfig = {
     string,
     {
       enabled?: boolean;
+      externalOverride?: boolean;
       hooks?: {
         allowPromptInjection?: boolean;
         allowConversationAccess?: boolean;
@@ -211,6 +212,10 @@ function normalizePluginEntries(
       ...normalized[normalizedKey],
       enabled:
         typeof entry.enabled === "boolean" ? entry.enabled : normalized[normalizedKey]?.enabled,
+      externalOverride:
+        typeof entry.externalOverride === "boolean"
+          ? entry.externalOverride
+          : normalized[normalizedKey]?.externalOverride,
       hooks: normalizedHooks ?? normalized[normalizedKey]?.hooks,
       subagent: normalizedSubagent ?? normalized[normalizedKey]?.subagent,
       llm: normalizedLlm ?? normalized[normalizedKey]?.llm,
