@@ -527,10 +527,15 @@ async function healthcheck() {
     let routeOk = true;
     let routeDetail = `default=${defaultModel || "unknown"} runtime=${runtimeId || "default"}`;
     if (String(defaultModel || "").startsWith("openai/")) {
-      routeOk = codexScopes.includes("api.responses.write");
-      routeDetail += routeOk
-        ? " openai OAuth has responses scope"
-        : " openai default requires api.responses.write, which the stored OAuth token lacks";
+      if (runtimeId === "codex") {
+        routeOk = true;
+        routeDetail += " openai model pinned through codex harness";
+      } else {
+        routeOk = codexScopes.includes("api.responses.write");
+        routeDetail += routeOk
+          ? " openai OAuth has responses scope"
+          : " openai default requires api.responses.write, which the stored OAuth token lacks";
+      }
     } else if (String(defaultModel || "").startsWith("openai-codex/")) {
       routeOk = runtimeId === "openclaw";
       routeDetail += routeOk
