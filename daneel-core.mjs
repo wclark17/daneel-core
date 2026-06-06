@@ -42,6 +42,7 @@ Commands:
   status               Show service status and port listener state
   healthcheck          Check service, port, Telegram, model auth, and fresh logs
   jobs                 Show Core-owned recurring direct cron jobs
+  eodhd-value-scan     Run the Core-owned EODHD value opportunity scan
   update [options]     Fetch/merge upstream, stop Core, build, restart, and healthcheck
   rollback [target]    Restore a rollback bundle created by update, then restart/healthcheck
   probe                Probe OpenClaw channels for the Daneel Core profile
@@ -58,6 +59,7 @@ function run(command, args, options = {}) {
     encoding: "utf8",
     env: options.env || process.env,
     cwd: options.cwd || repoRoot,
+    timeout: options.timeout,
   });
   if (options.capture) {
     return result;
@@ -809,6 +811,50 @@ function summarizeJobs(jobs, parseErrors) {
   };
 }
 
+function commandArgs() {
+  return process.argv.slice(3);
+}
+
+function hasCommandFlag(flag) {
+  return commandArgs().includes(flag);
+}
+
+function requireWorkspaceFile(relativePath) {
+  const file = path.join(workspaceRoot, relativePath);
+  if (!fs.existsSync(file)) {
+    throw new Error(`missing workspace file: ${file}`);
+  }
+  return file;
+}
+
+function checkCoreHealthForScheduledJob(timeoutSeconds = 90) {
+  if (!fs.existsSync(commandLink)) {
+    throw new Error(`missing daneel-core CLI: ${commandLink}`);
+  }
+  const result = runOptional(commandLink, ["healthcheck", "--json"], {
+    cwd: repoRoot,
+    env: process.env,
+    timeout: timeoutSeconds * 1000,
+  });
+  if (result.status !== 0) {
+    throw new Error(
+      `daneel-core healthcheck failed: ${(result.stderr || result.stdout || "").trim().slice(0, 1200)}`,
+    );
+  }
+  let payload;
+  try {
+    payload = JSON.parse(result.stdout || "{}");
+  } catch (error) {
+    throw new Error(`daneel-core healthcheck returned invalid JSON: ${error.message}`);
+  }
+  if (payload.ok !== true) {
+    throw new Error(
+      `daneel-core healthcheck not ok: ${(result.stdout || "").trim().slice(0, 1200)}`,
+    );
+  }
+  return payload;
+}
+
 async function jobsStatus() {
   const json = process.argv.includes("--json");
   const crontab = runOptional("crontab", ["-l"]);
@@ -865,6 +911,90 @@ async function jobsStatus() {
   }
 }
 
+async function eodhdValueScan() {
+  const json = hasCommandFlag("--json");
+  const preflightOnly = hasCommandFlag("--preflight-only");
+  const skipRun = hasCommandFlag("--skip-run");
+  const script = requireWorkspaceFile("scripts/cron_value_opportunity_scan.py");
+  requireWorkspaceFile("mission-control/value_scanner.py");
+
+  let health;
+  try {
+    health = checkCoreHealthForScheduledJob();
+  } catch (error) {
+    const message = `daily-eodhd-value-scan Core preflight failed: ${error.message}`;
+    if (json) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: false,
+            command: "eodhd-value-scan",
+            checkedAt: new Date().toISOString(),
+            workspaceRoot,
+            error: message,
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.error(message);
+    }
+    process.exit(1);
+  }
+
+  if (preflightOnly) {
+    if (json) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: true,
+            command: "eodhd-value-scan",
+            checkedAt: new Date().toISOString(),
+            workspaceRoot,
+            coreHealthCheckedAt: health.checkedAt,
+            mode: "preflight-only",
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.log("NO_REPLY");
+    }
+    return;
+  }
+
+  const env = {
+    ...process.env,
+    VALUE_SCAN_REQUEST_DELAY_SECONDS: process.env.VALUE_SCAN_REQUEST_DELAY_SECONDS || "0.02",
+    SCAN_SENTIMENT_DELAY_SECONDS: process.env.SCAN_SENTIMENT_DELAY_SECONDS || "0.02",
+  };
+  if (skipRun) {
+    env.VALUE_SCAN_SKIP_RUN = "1";
+  }
+  const result = runOptional("python3", [script], {
+    cwd: workspaceRoot,
+    env,
+    timeout: 1260 * 1000,
+  });
+  if (result.stdout) {
+    process.stdout.write(result.stdout);
+    if (!result.stdout.endsWith("\n")) {
+      process.stdout.write("\n");
+    }
+  }
+  if (result.stderr) {
+    process.stderr.write(result.stderr);
+    if (!result.stderr.endsWith("\n")) {
+      process.stderr.write("\n");
+    }
+  }
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
+
 async function main() {
   const command = process.argv[2] || "status";
   switch (command) {
@@ -900,6 +1030,10 @@ async function main() {
     case "jobs":
     case "cron-status":
       await jobsStatus();
+      return;
+    case "eodhd-value-scan":
+    case "value-scan":
+      await eodhdValueScan();
       return;
     case "update":
       runSafeUpdate("update", process.argv.slice(3));
