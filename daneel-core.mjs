@@ -22,6 +22,10 @@ const serviceLog = path.join(logDir, "gateway-service.log");
 const detachedLog = path.join(logDir, "gateway-detached.log");
 const unitPath = path.join(homeDir, ".config", "systemd", "user", serviceUnit);
 const commandLink = path.join(homeDir, ".local", "bin", "daneel-core");
+const workspaceRoot =
+  process.env.OPENCLAW_DANEEL_CORE_WORKSPACE ||
+  process.env.OPENCLAW_WORKSPACE ||
+  "/usr/local/share/work/daneel-workspace";
 const safeUpdateScript =
   process.env.OPENCLAW_DANEEL_CORE_SAFE_UPDATE_SCRIPT ||
   "/usr/local/share/work/daneel-workspace/skills/daneel-core-safe-update/scripts/daneel_core_safe_update.sh";
@@ -37,6 +41,7 @@ Commands:
   restart              Restart the systemd service
   status               Show service status and port listener state
   healthcheck          Check service, port, Telegram, model auth, and fresh logs
+  jobs                 Show Core-owned recurring direct cron jobs
   update [options]     Fetch/merge upstream, stop Core, build, restart, and healthcheck
   rollback [target]    Restore a rollback bundle created by update, then restart/healthcheck
   probe                Probe OpenClaw channels for the Daneel Core profile
@@ -629,6 +634,237 @@ async function healthcheck() {
   }
 }
 
+function splitShellWords(input) {
+  const words = [];
+  let current = "";
+  let quote = null;
+  let escaping = false;
+  for (const char of input) {
+    if (escaping) {
+      current += char;
+      escaping = false;
+      continue;
+    }
+    if (char === "\\" && quote !== "'") {
+      escaping = true;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+      } else {
+        current += char;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (current) {
+        words.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += char;
+  }
+  if (escaping) {
+    current += "\\";
+  }
+  if (quote) {
+    throw new Error(`unterminated ${quote} quote`);
+  }
+  if (current) {
+    words.push(current);
+  }
+  return words;
+}
+
+function readFlagValue(args, flag) {
+  const index = args.indexOf(flag);
+  return index >= 0 && index + 1 < args.length ? args[index + 1] : null;
+}
+
+function parseJsonArray(value) {
+  if (!value) {
+    return [];
+  }
+  const parsed = JSON.parse(value);
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+function legacyCronJobNames() {
+  return new Set([
+    "sonarr-status-refresh",
+    "mets-ticket-price-refresh",
+    "mission-control-state-builder",
+    "mission-control-health-check",
+    "daily-eodhd-value-scan",
+    "openclaw-security-update-watcher",
+    "daily-sonarr-wanted-report",
+    "openclaw-state-backup-local",
+    "gomining-price-update",
+    "daily-todo-republish",
+  ]);
+}
+
+function classifyDirectJob(command) {
+  const genericWrapper = path.join(workspaceRoot, "scripts", "cron_daneel_core_job_wrapper.py");
+  const executable = command[1] || command[0] || "";
+  if (command.includes(genericWrapper) || executable.endsWith("/cron_daneel_core_job_wrapper.py")) {
+    return "core-wrapped-legacy";
+  }
+  if (command.some((part) => /cron_daneel_core_.*\.py$/.test(part))) {
+    return "core-wrapper";
+  }
+  if (command[0] === commandLink || command[0]?.endsWith("/daneel-core")) {
+    return "core-cli";
+  }
+  return "direct";
+}
+
+function parseDirectCronJobs(crontabText) {
+  const runnerBasename = "cron_direct_runner.py";
+  const jobs = [];
+  const parseErrors = [];
+  for (const [index, rawLine] of crontabText.split(/\r?\n/).entries()) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#") || /^[A-Z_][A-Z0-9_]*=/.test(line)) {
+      continue;
+    }
+    let words;
+    try {
+      words = splitShellWords(line);
+    } catch (error) {
+      parseErrors.push({ line: index + 1, error: error.message, raw: rawLine });
+      continue;
+    }
+    if (words.length < 7 || !words.some((word) => word.endsWith(`/${runnerBasename}`))) {
+      continue;
+    }
+    const schedule = words.slice(0, 5).join(" ");
+    const args = words.slice(5);
+    const name = readFlagValue(args, "--name") || "";
+    let command = [];
+    let legacyJobName = null;
+    let commandParseError = null;
+    try {
+      command = parseJsonArray(readFlagValue(args, "--cmd-json"));
+      legacyJobName = readFlagValue(command, "--job-name");
+    } catch (error) {
+      commandParseError = error.message;
+    }
+    jobs.push({
+      name,
+      schedule,
+      sendMode: readFlagValue(args, "--send-mode"),
+      channel: readFlagValue(args, "--channel"),
+      target: readFlagValue(args, "--target"),
+      timeoutSeconds: Number(readFlagValue(args, "--timeout")) || null,
+      jsonOk: args.includes("--json-ok"),
+      classification: classifyDirectJob(command),
+      legacyJobName,
+      command,
+      commandParseError,
+      line: index + 1,
+    });
+  }
+  return { jobs, parseErrors };
+}
+
+function summarizeJobs(jobs, parseErrors) {
+  const oldNames = legacyCronJobNames();
+  const nonCoreNames = jobs
+    .filter((job) => !job.name.startsWith("daneel-core-"))
+    .map((job) => job.name);
+  const oldNamesPresent = jobs.filter((job) => oldNames.has(job.name)).map((job) => job.name);
+  const legacyWrappedNames = jobs
+    .filter((job) => job.legacyJobName)
+    .map((job) => job.legacyJobName);
+  const commandParseErrors = jobs
+    .filter((job) => job.commandParseError)
+    .map((job) => ({ name: job.name, error: job.commandParseError }));
+  const classifications = jobs.reduce((counts, job) => {
+    counts[job.classification] = (counts[job.classification] || 0) + 1;
+    return counts;
+  }, {});
+  const ok =
+    jobs.length > 0 &&
+    nonCoreNames.length === 0 &&
+    oldNamesPresent.length === 0 &&
+    parseErrors.length === 0 &&
+    commandParseErrors.length === 0;
+  return {
+    ok,
+    jobCount: jobs.length,
+    coreOwnedCount: jobs.length - nonCoreNames.length,
+    classifications,
+    nonCoreNames,
+    oldNamesPresent,
+    legacyWrappedNames,
+    parseErrors,
+    commandParseErrors,
+  };
+}
+
+async function jobsStatus() {
+  const json = process.argv.includes("--json");
+  const crontab = runOptional("crontab", ["-l"]);
+  const checkedAt = new Date().toISOString();
+  if (crontab.status !== 0) {
+    const payload = {
+      ok: false,
+      checkedAt,
+      workspaceRoot,
+      error: crontab.stderr || crontab.stdout || `crontab exited ${crontab.status}`,
+    };
+    if (json) {
+      console.log(JSON.stringify(payload, null, 2));
+    } else {
+      console.log("Daneel Core jobs: FAIL");
+      console.log(payload.error);
+    }
+    process.exit(1);
+  }
+  const { jobs, parseErrors } = parseDirectCronJobs(crontab.stdout);
+  const summary = summarizeJobs(jobs, parseErrors);
+  const payload = { ...summary, checkedAt, workspaceRoot, jobs };
+  if (json) {
+    console.log(JSON.stringify(payload, null, 2));
+  } else {
+    console.log(summary.ok ? "Daneel Core jobs: OK" : "Daneel Core jobs: FAIL");
+    console.log(`Managed direct cron jobs: ${summary.jobCount}`);
+    console.log(`Core-owned names: ${summary.coreOwnedCount}/${summary.jobCount}`);
+    console.log(`Core CLI jobs: ${summary.classifications["core-cli"] || 0}`);
+    console.log(`Core wrapper jobs: ${summary.classifications["core-wrapper"] || 0}`);
+    console.log(`Core-wrapped legacy jobs: ${summary.classifications["core-wrapped-legacy"] || 0}`);
+    if (summary.nonCoreNames.length) {
+      console.log(`Non-Core names: ${summary.nonCoreNames.join(", ")}`);
+    }
+    if (summary.oldNamesPresent.length) {
+      console.log(`Old names present: ${summary.oldNamesPresent.join(", ")}`);
+    }
+    for (const job of jobs) {
+      const target = job.target ? ` -> ${job.target}` : "";
+      const legacy = job.legacyJobName ? ` legacy=${job.legacyJobName}` : "";
+      console.log(
+        `${job.schedule} ${job.name} [${job.classification}] send=${job.sendMode || "unset"}${target}${legacy}`,
+      );
+    }
+    for (const error of summary.parseErrors) {
+      console.log(`Parse error line ${error.line}: ${error.error}`);
+    }
+    for (const error of summary.commandParseErrors) {
+      console.log(`Command parse error ${error.name}: ${error.error}`);
+    }
+  }
+  if (!summary.ok) {
+    process.exit(1);
+  }
+}
+
 async function main() {
   const command = process.argv[2] || "status";
   switch (command) {
@@ -660,6 +896,10 @@ async function main() {
       return;
     case "healthcheck":
       await healthcheck();
+      return;
+    case "jobs":
+    case "cron-status":
+      await jobsStatus();
       return;
     case "update":
       runSafeUpdate("update", process.argv.slice(3));
