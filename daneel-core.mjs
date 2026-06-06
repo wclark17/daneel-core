@@ -42,7 +42,7 @@ Commands:
   status               Show service status and port listener state
   healthcheck          Check service, port, Telegram, model auth, and fresh logs
   jobs                 Show Core-owned recurring direct cron jobs
-  eodhd-value-scan     Run the Core-owned EODHD value opportunity scan
+  run <jobname>        Run a Core-owned scheduled job
   update [options]     Fetch/merge upstream, stop Core, build, restart, and healthcheck
   rollback [target]    Restore a rollback bundle created by update, then restart/healthcheck
   probe                Probe OpenClaw channels for the Daneel Core profile
@@ -50,6 +50,9 @@ Commands:
   follow-logs          Follow service logs
   run-service          Run the gateway in the foreground for systemd
   install-command      Symlink this launcher to ~/.local/bin/daneel-core
+
+Core job names:
+  daily-eodhd-value-scan
 `);
 }
 
@@ -995,6 +998,28 @@ async function eodhdValueScan() {
   }
 }
 
+const coreJobRunners = new Map([
+  ["daily-eodhd-value-scan", eodhdValueScan],
+  ["eodhd-value-scan", eodhdValueScan],
+  ["value-scan", eodhdValueScan],
+]);
+
+async function runCoreJob() {
+  const jobName = process.argv[3];
+  if (!jobName || jobName === "--help" || jobName === "-h") {
+    console.error("Usage: daneel-core run <jobname> [options]");
+    console.error(`Known jobs: ${Array.from(coreJobRunners.keys()).join(", ")}`);
+    process.exit(2);
+  }
+  const runner = coreJobRunners.get(jobName);
+  if (!runner) {
+    console.error(`Unknown Core job: ${jobName}`);
+    console.error(`Known jobs: ${Array.from(coreJobRunners.keys()).join(", ")}`);
+    process.exit(2);
+  }
+  await runner();
+}
+
 async function main() {
   const command = process.argv[2] || "status";
   switch (command) {
@@ -1030,6 +1055,9 @@ async function main() {
     case "jobs":
     case "cron-status":
       await jobsStatus();
+      return;
+    case "run":
+      await runCoreJob();
       return;
     case "eodhd-value-scan":
     case "value-scan":
