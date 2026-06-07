@@ -22,6 +22,12 @@ const serviceLog = path.join(logDir, "gateway-service.log");
 const detachedLog = path.join(logDir, "gateway-detached.log");
 const unitPath = path.join(homeDir, ".config", "systemd", "user", serviceUnit);
 const commandLink = path.join(homeDir, ".local", "bin", "daneel-core");
+const opServiceAccountTokenFile = path.join(
+  homeDir,
+  ".openclaw",
+  "secrets",
+  "op_service_account_token",
+);
 const workspaceRoot =
   process.env.OPENCLAW_DANEEL_CORE_WORKSPACE ||
   process.env.OPENCLAW_WORKSPACE ||
@@ -56,6 +62,7 @@ Core job names:
   openclaw-security-update-watcher
   daily-todo-republish
   mets-ticket-price-refresh
+  sonarr-status-refresh
 `);
 }
 
@@ -840,6 +847,17 @@ function requireFile(file, label = "file") {
   return file;
 }
 
+function scheduledJobEnv() {
+  const env = { ...process.env };
+  if (!env.OP_SERVICE_ACCOUNT_TOKEN && fs.existsSync(opServiceAccountTokenFile)) {
+    const token = fs.readFileSync(opServiceAccountTokenFile, "utf8").trim();
+    if (token) {
+      env.OP_SERVICE_ACCOUNT_TOKEN = token;
+    }
+  }
+  return env;
+}
+
 function checkCoreHealthForScheduledJob(timeoutSeconds = 90) {
   if (!fs.existsSync(commandLink)) {
     throw new Error(`missing daneel-core CLI: ${commandLink}`);
@@ -1234,6 +1252,83 @@ async function metsTicketPriceRefresh() {
   }
 }
 
+async function sonarrStatusRefresh() {
+  const json = hasCommandFlag("--json");
+  const preflightOnly = hasCommandFlag("--preflight-only");
+  const script = requireWorkspaceFile("scripts/cron_sonarr_status_refresh.py");
+  requireWorkspaceFile("mission-control/sonarr_status_refresh.js");
+  requireWorkspaceFile("mission-control/build_state.py");
+  requireFile(opServiceAccountTokenFile, "1Password service account token");
+
+  let health;
+  try {
+    health = checkCoreHealthForScheduledJob();
+  } catch (error) {
+    const message = `sonarr-status-refresh Core preflight failed: ${error.message}`;
+    if (json) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: false,
+            command: "sonarr-status-refresh",
+            checkedAt: new Date().toISOString(),
+            workspaceRoot,
+            error: message,
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.error(message);
+    }
+    process.exit(1);
+  }
+
+  if (preflightOnly) {
+    if (json) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: true,
+            command: "sonarr-status-refresh",
+            checkedAt: new Date().toISOString(),
+            workspaceRoot,
+            coreHealthCheckedAt: health.checkedAt,
+            mode: "preflight-only",
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.log("NO_REPLY");
+    }
+    return;
+  }
+
+  const result = runOptional("python3", [script], {
+    cwd: workspaceRoot,
+    env: scheduledJobEnv(),
+    timeout: 360 * 1000,
+  });
+  if (result.stdout) {
+    process.stdout.write(result.stdout);
+    if (!result.stdout.endsWith("\n")) {
+      process.stdout.write("\n");
+    }
+  }
+  if (result.stderr) {
+    process.stderr.write(result.stderr);
+    if (!result.stderr.endsWith("\n")) {
+      process.stderr.write("\n");
+    }
+  }
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
+
 const coreJobRunners = new Map([
   ["daily-eodhd-value-scan", eodhdValueScan],
   ["eodhd-value-scan", eodhdValueScan],
@@ -1244,6 +1339,8 @@ const coreJobRunners = new Map([
   ["todo-republish", dailyTodoRepublish],
   ["mets-ticket-price-refresh", metsTicketPriceRefresh],
   ["mets-prices", metsTicketPriceRefresh],
+  ["sonarr-status-refresh", sonarrStatusRefresh],
+  ["sonarr-status", sonarrStatusRefresh],
 ]);
 
 async function runCoreJob() {
