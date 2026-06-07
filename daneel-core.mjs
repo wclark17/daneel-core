@@ -55,6 +55,7 @@ Core job names:
   daily-eodhd-value-scan
   openclaw-security-update-watcher
   daily-todo-republish
+  mets-ticket-price-refresh
 `);
 }
 
@@ -832,6 +833,13 @@ function requireWorkspaceFile(relativePath) {
   return file;
 }
 
+function requireFile(file, label = "file") {
+  if (!fs.existsSync(file)) {
+    throw new Error(`missing ${label}: ${file}`);
+  }
+  return file;
+}
+
 function checkCoreHealthForScheduledJob(timeoutSeconds = 90) {
   if (!fs.existsSync(commandLink)) {
     throw new Error(`missing daneel-core CLI: ${commandLink}`);
@@ -1149,6 +1157,83 @@ async function dailyTodoRepublish() {
   }
 }
 
+async function metsTicketPriceRefresh() {
+  const json = hasCommandFlag("--json");
+  const preflightOnly = hasCommandFlag("--preflight-only");
+  const script = requireWorkspaceFile("mission-control/fetch_mets_prices.py");
+  requireWorkspaceFile("mission-control/build_state.py");
+  requireWorkspaceFile("mission-control/service_account.json");
+  requireFile(path.join(os.homedir(), ".openclaw", "openclaw.json"), "OpenClaw config");
+
+  let health;
+  try {
+    health = checkCoreHealthForScheduledJob();
+  } catch (error) {
+    const message = `mets-ticket-price-refresh Core preflight failed: ${error.message}`;
+    if (json) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: false,
+            command: "mets-ticket-price-refresh",
+            checkedAt: new Date().toISOString(),
+            workspaceRoot,
+            error: message,
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.error(message);
+    }
+    process.exit(1);
+  }
+
+  if (preflightOnly) {
+    if (json) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: true,
+            command: "mets-ticket-price-refresh",
+            checkedAt: new Date().toISOString(),
+            workspaceRoot,
+            coreHealthCheckedAt: health.checkedAt,
+            mode: "preflight-only",
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.log("NO_REPLY");
+    }
+    return;
+  }
+
+  const result = runOptional("python3", [script, "--rebuild-state"], {
+    cwd: workspaceRoot,
+    env: process.env,
+    timeout: 360 * 1000,
+  });
+  if (result.stdout) {
+    process.stdout.write(result.stdout);
+    if (!result.stdout.endsWith("\n")) {
+      process.stdout.write("\n");
+    }
+  }
+  if (result.stderr) {
+    process.stderr.write(result.stderr);
+    if (!result.stderr.endsWith("\n")) {
+      process.stderr.write("\n");
+    }
+  }
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
+
 const coreJobRunners = new Map([
   ["daily-eodhd-value-scan", eodhdValueScan],
   ["eodhd-value-scan", eodhdValueScan],
@@ -1157,6 +1242,8 @@ const coreJobRunners = new Map([
   ["security-update-watcher", openclawSecurityUpdateWatcher],
   ["daily-todo-republish", dailyTodoRepublish],
   ["todo-republish", dailyTodoRepublish],
+  ["mets-ticket-price-refresh", metsTicketPriceRefresh],
+  ["mets-prices", metsTicketPriceRefresh],
 ]);
 
 async function runCoreJob() {
