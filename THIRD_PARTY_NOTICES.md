@@ -1,12 +1,21 @@
 # Third-party notices
 
 This file records third-party notices for code or substantial implementation
-portions incorporated into OpenClaw source, beyond normal package-manager
+portions incorporated into Daneel Core source, beyond normal package-manager
 dependency metadata.
+
+## OpenClaw
+
+Daneel Core began as a fork of OpenClaw and preserves the original MIT license.
+See [UPSTREAM.md](UPSTREAM.md) for the fork point and repository history.
+
+- Upstream: https://github.com/openclaw/openclaw
+- License: MIT
+- Copyright: Copyright (c) 2026 OpenClaw Foundation
 
 ## Pi / pi-mono
 
-Portions of OpenClaw were adapted from Pi / pi-mono, and OpenClaw also depends
+Portions of Daneel Core were adapted from Pi / pi-mono, and Daneel Core also depends
 on `@earendil-works/pi-tui` for terminal UI rendering.
 
 - Upstream: https://github.com/earendil-works/pi-mono
