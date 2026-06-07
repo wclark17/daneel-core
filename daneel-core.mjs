@@ -64,6 +64,8 @@ Core job names:
   mets-ticket-price-refresh
   sonarr-status-refresh
   daily-sonarr-wanted-report
+  openclaw-state-backup-local
+  gomining-price-update
 `);
 }
 
@@ -1420,6 +1422,188 @@ async function dailySonarrWantedReport() {
   }
 }
 
+async function openclawStateBackupLocal() {
+  const json = hasCommandFlag("--json");
+  const preflightOnly = hasCommandFlag("--preflight-only");
+  const script = requireWorkspaceFile("scripts/backup_openclaw_state_sync.py");
+  requireFile(path.join(homeDir, ".openclaw"), "OpenClaw state directory");
+
+  let health;
+  try {
+    health = checkCoreHealthForScheduledJob();
+  } catch (error) {
+    const message = `openclaw-state-backup-local Core preflight failed: ${error.message}`;
+    if (json) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: false,
+            command: "openclaw-state-backup-local",
+            checkedAt: new Date().toISOString(),
+            workspaceRoot,
+            error: message,
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.error(message);
+    }
+    process.exit(1);
+  }
+
+  if (preflightOnly) {
+    if (json) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: true,
+            command: "openclaw-state-backup-local",
+            checkedAt: new Date().toISOString(),
+            workspaceRoot,
+            coreHealthCheckedAt: health.checkedAt,
+            mode: "preflight-only",
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.log("NO_REPLY");
+    }
+    return;
+  }
+
+  const result = runOptional("python3", [script, "--skip-sync"], {
+    cwd: workspaceRoot,
+    env: process.env,
+    timeout: 14460 * 1000,
+  });
+  if (result.stdout) {
+    process.stdout.write(result.stdout);
+    if (!result.stdout.endsWith("\n")) {
+      process.stdout.write("\n");
+    }
+  }
+  if (result.stderr) {
+    process.stderr.write(result.stderr);
+    if (!result.stderr.endsWith("\n")) {
+      process.stderr.write("\n");
+    }
+  }
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
+
+async function gominingPriceUpdate() {
+  const json = hasCommandFlag("--json");
+  const preflightOnly = hasCommandFlag("--preflight-only");
+  const script = requireWorkspaceFile("mission-control/update_gomining_prices.py");
+  requireFile(opServiceAccountTokenFile, "1Password service account token");
+
+  let health;
+  try {
+    health = checkCoreHealthForScheduledJob();
+  } catch (error) {
+    const message = `gomining-price-update Core preflight failed: ${error.message}`;
+    if (json) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: false,
+            command: "gomining-price-update",
+            checkedAt: new Date().toISOString(),
+            workspaceRoot,
+            error: message,
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.error(message);
+    }
+    process.exit(1);
+  }
+
+  if (preflightOnly) {
+    const env = scheduledJobEnv();
+    const opCheck = runOptional(
+      "op",
+      ["item", "get", "Daneel service account key", "--vault", "Daneel Shared", "--format=json"],
+      {
+        cwd: workspaceRoot,
+        env,
+        timeout: 45 * 1000,
+      },
+    );
+    if (opCheck.status !== 0) {
+      const detail =
+        (opCheck.stderr || opCheck.stdout || "").trim().split("\n").pop() || "unknown error";
+      if (json) {
+        console.log(
+          JSON.stringify(
+            {
+              ok: false,
+              command: "gomining-price-update",
+              checkedAt: new Date().toISOString(),
+              workspaceRoot,
+              error: `1Password service account preflight failed: ${detail}`,
+            },
+            null,
+            2,
+          ),
+        );
+      } else {
+        console.error(`gomining-price-update 1Password preflight failed: ${detail}`);
+      }
+      process.exit(1);
+    }
+    if (json) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: true,
+            command: "gomining-price-update",
+            checkedAt: new Date().toISOString(),
+            workspaceRoot,
+            coreHealthCheckedAt: health.checkedAt,
+            mode: "preflight-only",
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.log("NO_REPLY");
+    }
+    return;
+  }
+
+  const result = runOptional("python3", [script], {
+    cwd: workspaceRoot,
+    env: scheduledJobEnv(),
+    timeout: 300 * 1000,
+  });
+  if (result.stdout) {
+    process.stdout.write(result.stdout);
+    if (!result.stdout.endsWith("\n")) {
+      process.stdout.write("\n");
+    }
+  }
+  if (result.stderr) {
+    process.stderr.write(result.stderr);
+    if (!result.stderr.endsWith("\n")) {
+      process.stderr.write("\n");
+    }
+  }
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
+
 const coreJobRunners = new Map([
   ["daily-eodhd-value-scan", eodhdValueScan],
   ["eodhd-value-scan", eodhdValueScan],
@@ -1434,6 +1618,10 @@ const coreJobRunners = new Map([
   ["sonarr-status", sonarrStatusRefresh],
   ["daily-sonarr-wanted-report", dailySonarrWantedReport],
   ["sonarr-wanted-report", dailySonarrWantedReport],
+  ["openclaw-state-backup-local", openclawStateBackupLocal],
+  ["state-backup-local", openclawStateBackupLocal],
+  ["gomining-price-update", gominingPriceUpdate],
+  ["gomining-prices", gominingPriceUpdate],
 ]);
 
 async function runCoreJob() {
