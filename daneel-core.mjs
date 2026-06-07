@@ -40,6 +40,7 @@ function usage() {
   console.log(`Usage: daneel-core <command>
 
 Commands:
+  --version, version    Print the Daneel Core version
   install-service      Install and start the Daneel Core user systemd service
   uninstall-service    Stop, disable, and remove the user systemd service
   start                Start the systemd service
@@ -57,7 +58,7 @@ Commands:
   run <jobname>        Run a Core-owned scheduled job
   update [options]     Rebuild/restart the frozen Core checkout; does not merge upstream
   rollback [target]    Restore a rollback bundle created by update, then restart/healthcheck
-  probe                Probe OpenClaw channels for the Daneel Core profile
+  probe                Probe Daneel Core channels for the active profile
   logs [lines]         Show recent service logs
   follow-logs          Follow service logs
   run-service          Run the gateway in the foreground for systemd
@@ -125,7 +126,7 @@ function runFrozenCoreUpdate(args) {
   for (const arg of args) {
     if (forbidden.has(arg)) {
       console.error(
-        `${arg} is disabled for Daneel Core. This runtime is frozen on the final OpenClaw base; make Core changes directly in the fork instead of merging upstream.`,
+        `${arg} is disabled for Daneel Core. This runtime is frozen on the final upstream base; make Core changes directly in the fork instead of merging upstream.`,
       );
       process.exit(1);
     }
@@ -166,6 +167,65 @@ function parseJsonRun(command, args, options = {}) {
 
 function readJsonFile(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+
+function readJsonFileOptional(file) {
+  try {
+    return readJsonFile(file);
+  } catch {
+    return null;
+  }
+}
+
+function formatCoreCommit(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const match = value.trim().match(/[0-9a-fA-F]{7,40}/);
+  return match ? match[0].slice(0, 7).toLowerCase() : null;
+}
+
+function resolveCoreVersion() {
+  const packageVersion = readJsonFileOptional(path.join(repoRoot, "package.json"))?.version;
+  if (typeof packageVersion === "string" && packageVersion.trim()) {
+    return packageVersion.trim();
+  }
+  const buildVersion = readJsonFileOptional(
+    path.join(repoRoot, "dist", "build-info.json"),
+  )?.version;
+  if (typeof buildVersion === "string" && buildVersion.trim()) {
+    return buildVersion.trim();
+  }
+  return "0.0.0";
+}
+
+function resolveCoreCommit() {
+  const envCommit = formatCoreCommit(process.env.GIT_COMMIT ?? process.env.GIT_SHA);
+  if (envCommit) {
+    return envCommit;
+  }
+  const gitCommit = runOptional("git", ["rev-parse", "--short=7", "HEAD"], {
+    cwd: repoRoot,
+  });
+  if (gitCommit.ok) {
+    const formatted = formatCoreCommit(gitCommit.stdout);
+    if (formatted) {
+      return formatted;
+    }
+  }
+  return (
+    formatCoreCommit(
+      readJsonFileOptional(path.join(repoRoot, "dist", "build-info.json"))?.commit,
+    ) ??
+    formatCoreCommit(readJsonFileOptional(path.join(repoRoot, "package.json"))?.gitHead) ??
+    formatCoreCommit(readJsonFileOptional(path.join(repoRoot, "package.json"))?.githead)
+  );
+}
+
+function version() {
+  const coreVersion = resolveCoreVersion();
+  const commit = resolveCoreCommit();
+  console.log(commit ? `Daneel Core ${coreVersion} (${commit})` : `Daneel Core ${coreVersion}`);
 }
 
 function installedCodexHarnessSupportsOpenAi() {
@@ -376,7 +436,7 @@ function buildUnitContent() {
     .join("\n");
 
   return `[Unit]
-Description=Daneel Core OpenClaw Gateway
+Description=Daneel Core Gateway
 After=network-online.target
 Wants=network-online.target
 
@@ -1260,7 +1320,7 @@ async function metsTicketPriceRefresh() {
   const script = requireWorkspaceFile("mission-control/fetch_mets_prices.py");
   requireWorkspaceFile("mission-control/build_state.py");
   requireWorkspaceFile("mission-control/service_account.json");
-  requireFile(path.join(os.homedir(), ".openclaw", "openclaw.json"), "OpenClaw config");
+  requireFile(path.join(os.homedir(), ".openclaw", "openclaw.json"), "Daneel Core config");
 
   let health;
   try {
@@ -1502,7 +1562,7 @@ async function openclawStateBackupLocal() {
   const json = hasCommandFlag("--json");
   const preflightOnly = hasCommandFlag("--preflight-only");
   const script = requireWorkspaceFile("scripts/backup_openclaw_state_sync.py");
-  requireFile(path.join(homeDir, ".openclaw"), "OpenClaw state directory");
+  requireFile(path.join(homeDir, ".openclaw"), "Daneel Core compatibility state directory");
 
   let health;
   try {
@@ -1723,6 +1783,12 @@ async function main() {
     case "-h":
     case "help":
       usage();
+      return;
+    case "--version":
+    case "-V":
+    case "-v":
+    case "version":
+      version();
       return;
     case "install-command":
       await installCommand();

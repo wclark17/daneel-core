@@ -262,7 +262,7 @@ describe("openclaw launcher", () => {
     );
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toBe("OpenClaw 1.2.3-test (abcdef0)\n");
+    expect(result.stdout).toBe("Daneel Core 1.2.3-test (abcdef0)\n");
     expect(result.stderr).toBe("");
   });
 

@@ -459,7 +459,9 @@ function tryOutputLauncherVersion(argv) {
     }
     const version = resolveLauncherVersion();
     const commit = resolveLauncherCommit();
-    process.stdout.write(commit ? `OpenClaw ${version} (${commit})\n` : `OpenClaw ${version}\n`);
+    process.stdout.write(
+      commit ? `Daneel Core ${version} (${commit})\n` : `Daneel Core ${version}\n`,
+    );
     return true;
   } catch {
     return false;
