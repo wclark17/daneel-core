@@ -49,7 +49,7 @@ Commands:
   healthcheck          Check service, port, Telegram, model auth, and fresh logs
   jobs                 Show Core-owned recurring direct cron jobs
   run <jobname>        Run a Core-owned scheduled job
-  update [options]     Fetch/merge upstream, stop Core, build, restart, and healthcheck
+  update [options]     Rebuild/restart the frozen Core checkout; does not merge upstream
   rollback [target]    Restore a rollback bundle created by update, then restart/healthcheck
   probe                Probe OpenClaw channels for the Daneel Core profile
   logs [lines]         Show recent service logs
@@ -112,6 +112,27 @@ function runSafeUpdate(mode, args) {
       DANEEL_CORE_CLI: commandLink,
     },
   });
+}
+
+function runFrozenCoreUpdate(args) {
+  const forbidden = new Set(["--fetch-upstream-main", "--merge"]);
+  for (const arg of args) {
+    if (forbidden.has(arg)) {
+      console.error(
+        `${arg} is disabled for Daneel Core. This runtime is frozen on the final OpenClaw base; make Core changes directly in the fork instead of merging upstream.`,
+      );
+      process.exit(1);
+    }
+  }
+  const normalizedArgs = args.length > 0 ? [...args] : ["--build-current"];
+  if (
+    !normalizedArgs.includes("--build-current") &&
+    !normalizedArgs.includes("--no-merge") &&
+    !normalizedArgs.includes("--dry-run")
+  ) {
+    normalizedArgs.unshift("--build-current");
+  }
+  runSafeUpdate("update", normalizedArgs);
 }
 
 function printOptional(command, args, options = {}) {
@@ -1684,7 +1705,7 @@ async function main() {
       await eodhdValueScan();
       return;
     case "update":
-      runSafeUpdate("update", process.argv.slice(3));
+      runFrozenCoreUpdate(process.argv.slice(3));
       return;
     case "rollback":
       runSafeUpdate("rollback", process.argv.slice(3));
