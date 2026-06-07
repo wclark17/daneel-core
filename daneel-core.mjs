@@ -54,6 +54,7 @@ Commands:
 Core job names:
   daily-eodhd-value-scan
   openclaw-security-update-watcher
+  daily-todo-republish
 `);
 }
 
@@ -1073,12 +1074,89 @@ async function openclawSecurityUpdateWatcher() {
   }
 }
 
+async function dailyTodoRepublish() {
+  const json = hasCommandFlag("--json");
+  const preflightOnly = hasCommandFlag("--preflight-only");
+  const script = requireWorkspaceFile("scripts/cron_todo_republish.py");
+  requireWorkspaceFile("todo-list.md");
+
+  let health;
+  try {
+    health = checkCoreHealthForScheduledJob();
+  } catch (error) {
+    const message = `daily-todo-republish Core preflight failed: ${error.message}`;
+    if (json) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: false,
+            command: "daily-todo-republish",
+            checkedAt: new Date().toISOString(),
+            workspaceRoot,
+            error: message,
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.error(message);
+    }
+    process.exit(1);
+  }
+
+  if (preflightOnly) {
+    if (json) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: true,
+            command: "daily-todo-republish",
+            checkedAt: new Date().toISOString(),
+            workspaceRoot,
+            coreHealthCheckedAt: health.checkedAt,
+            mode: "preflight-only",
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.log("NO_REPLY");
+    }
+    return;
+  }
+
+  const result = runOptional("python3", [script], {
+    cwd: workspaceRoot,
+    env: process.env,
+    timeout: 120 * 1000,
+  });
+  if (result.stdout) {
+    process.stdout.write(result.stdout);
+    if (!result.stdout.endsWith("\n")) {
+      process.stdout.write("\n");
+    }
+  }
+  if (result.stderr) {
+    process.stderr.write(result.stderr);
+    if (!result.stderr.endsWith("\n")) {
+      process.stderr.write("\n");
+    }
+  }
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
+
 const coreJobRunners = new Map([
   ["daily-eodhd-value-scan", eodhdValueScan],
   ["eodhd-value-scan", eodhdValueScan],
   ["value-scan", eodhdValueScan],
   ["openclaw-security-update-watcher", openclawSecurityUpdateWatcher],
   ["security-update-watcher", openclawSecurityUpdateWatcher],
+  ["daily-todo-republish", dailyTodoRepublish],
+  ["todo-republish", dailyTodoRepublish],
 ]);
 
 async function runCoreJob() {
