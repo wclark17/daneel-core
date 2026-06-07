@@ -197,7 +197,7 @@ function resolveUpdateStatusBanner(params: { status?: string; reason?: string })
       "not-git-install":
         "Not a git checkout. Run `openclaw update` from the CLI for a global reinstall.",
       "not-openclaw-root":
-        "Run the update from an OpenClaw checkout or use the CLI global reinstall path.",
+        "Run the update from a Daneel Core checkout or use the CLI global reinstall path.",
       "deps-install-failed": "Dependency install failed. Fix the install error and retry.",
       "build-failed": "Build failed. Fix the build error and retry.",
       "ui-build-failed": "The control UI rebuild failed. Fix the UI build error and retry.",
@@ -209,7 +209,8 @@ function resolveUpdateStatusBanner(params: { status?: string; reason?: string })
         "This global install cannot be safely replaced while restarts are disabled and no supervisor is present.",
       "restart-unhealthy":
         "The replacement process never became healthy. The previous process stayed up so you can recover.",
-      "doctor-failed": "Doctor repair failed. Run `openclaw doctor --non-interactive` and retry.",
+      "doctor-failed":
+        "Doctor repair failed. Run `daneel-core doctor --non-interactive` and retry.",
     }[reason] ?? "See the gateway logs for the exact failure and retry once the cause is fixed.";
   return {
     tone,

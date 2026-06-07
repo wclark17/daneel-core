@@ -110,7 +110,7 @@ export async function controlRealtimeVoiceAgentRun(
         active: false,
         aborted: false,
         reason: "no_active_run",
-        message: "There is no active OpenClaw run to cancel.",
+        message: "There is no active Daneel Core run to cancel.",
         speak: true,
         show: true,
         suppress: false,
@@ -118,8 +118,8 @@ export async function controlRealtimeVoiceAgentRun(
     }
     const aborted = deps.abortEmbeddedAgentRun(sessionId);
     const message = aborted
-      ? "Cancelled the active OpenClaw run."
-      : "OpenClaw could not cancel the active run.";
+      ? "Cancelled the active Daneel Core run."
+      : "Daneel Core could not cancel the active run.";
     return {
       ok: aborted,
       mode,

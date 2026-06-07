@@ -66,7 +66,7 @@ export function buildRealtimeVoiceAgentConsultWorkingResponse(
   return {
     status: "working",
     tool: REALTIME_VOICE_AGENT_CONSULT_TOOL_NAME,
-    message: `Tell the ${audienceLabel} briefly that you are checking, then wait for the final OpenClaw result before answering with the actual result.`,
+    message: `Tell the ${audienceLabel} briefly that you are checking, then wait for the final Daneel Core result before answering with the actual result.`,
   };
 }
 

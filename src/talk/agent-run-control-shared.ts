@@ -273,16 +273,16 @@ function parseRealtimeVoiceAgentControlToolArgsRecord(args: unknown): unknown {
 /** Build the system-style instruction that forces exact spoken status output. */
 export function buildRealtimeVoiceAgentControlSpeechMessage(text: string): string {
   return [
-    "Internal OpenClaw voice control result.",
+    "Internal Daneel Core voice control result.",
     "Do not call openclaw_agent_consult or any other tool for this message.",
-    "Speak this exact OpenClaw status to the voice call, without adding, removing, or rephrasing words.",
+    "Speak this exact Daneel Core status to the voice call, without adding, removing, or rephrasing words.",
     `Status: ${JSON.stringify(text)}`,
   ].join("\n");
 }
 
 /** Provider result payload used when the control tool cancels active work. */
 export function buildRealtimeVoiceAgentCancelProviderResult(
-  message = "Cancelled the active OpenClaw run.",
+  message = "Cancelled the active Daneel Core run.",
 ): RealtimeVoiceAgentControlProviderResult {
   return {
     status: "cancelled",
@@ -306,14 +306,14 @@ export function formatRealtimeVoiceAgentQueueRejection(
   reason: string,
 ): string {
   if (reason === "compacting") {
-    return "OpenClaw is compacting the active run and cannot accept voice steering yet.";
+    return "Daneel Core is compacting the active run and cannot accept voice steering yet.";
   }
   if (reason === "not_streaming") {
-    return "OpenClaw has an active run, but it is not currently accepting steering.";
+    return "Daneel Core has an active run, but it is not currently accepting steering.";
   }
   return mode === "followup"
-    ? "OpenClaw could not queue that follow-up."
-    : "OpenClaw could not steer the active run.";
+    ? "Daneel Core could not queue that follow-up."
+    : "Daneel Core could not steer the active run.";
 }
 
 function isRealtimeVoiceAgentControlToolEvent(event: TalkEvent): boolean {
@@ -337,7 +337,7 @@ export function formatRealtimeVoiceAgentStatus(params: {
   if (!params.active) {
     const turnEnded = recent.find((event) => event.type === "turn.ended");
     return turnEnded
-      ? "OpenClaw finished the last voice request."
+      ? "Daneel Core finished the last voice request."
       : "I'm not working on an active request right now.";
   }
 
@@ -352,29 +352,29 @@ export function formatRealtimeVoiceAgentStatus(params: {
     const name = normalizeOptionalString(payload.name);
     const phase = normalizeOptionalString(payload.phase);
     if (toolEvent.type === "tool.call") {
-      return name ? `OpenClaw is starting ${name}.` : "OpenClaw is starting a tool.";
+      return name ? `Daneel Core is starting ${name}.` : "Daneel Core is starting a tool.";
     }
     if (toolEvent.type === "tool.result") {
       return name
-        ? `OpenClaw finished ${name} and is continuing.`
-        : "OpenClaw finished a tool and is continuing.";
+        ? `Daneel Core finished ${name} and is continuing.`
+        : "Daneel Core finished a tool and is continuing.";
     }
     if (toolEvent.type === "tool.progress") {
       return name
-        ? `OpenClaw is working in ${name}${phase ? ` (${phase})` : ""}.`
-        : "OpenClaw is still working.";
+        ? `Daneel Core is working in ${name}${phase ? ` (${phase})` : ""}.`
+        : "Daneel Core is still working.";
     }
   }
 
   if (params.activity?.activeToolName) {
-    return `OpenClaw is running ${params.activity.activeToolName}.`;
+    return `Daneel Core is running ${params.activity.activeToolName}.`;
   }
   if (params.activity?.activeWorkKind === "model_call") {
-    return "OpenClaw is waiting on the model.";
+    return "Daneel Core is waiting on the model.";
   }
   if (params.activity?.activeWorkKind === "embedded_run" || params.activity?.hasActiveEmbeddedRun) {
-    return "OpenClaw is working on the current voice request.";
+    return "Daneel Core is working on the current voice request.";
   }
 
-  return "OpenClaw is working on the current voice request.";
+  return "Daneel Core is working on the current voice request.";
 }

@@ -14,6 +14,7 @@ import {
 
 type DashboardOptions = {
   noOpen?: boolean;
+  printAuthUrl?: boolean;
   yes?: boolean;
 };
 
@@ -81,6 +82,9 @@ export async function dashboardCommand(
   runtime.log(`Dashboard URL: ${links.httpUrl}`);
   if (includeTokenInUrl) {
     runtime.log("Token auto-auth included in browser/clipboard URL.");
+    if (options.printAuthUrl) {
+      runtime.log(`Tokenized Dashboard URL: ${dashboardUrl}`);
+    }
   }
   if (resolvedToken.secretRefConfigured && token) {
     runtime.log(
@@ -129,6 +133,9 @@ export async function dashboardCommand(
   if (fallbackToManualAuth) {
     runtime.log(
       "Token auto-auth not delivered. Append your gateway token (from OPENCLAW_GATEWAY_TOKEN or gateway.auth.token) as a URL fragment with key `token` to authenticate.",
+    );
+    runtime.log(
+      "Or rerun with `--print-auth-url` to explicitly print the full tokenized URL in this terminal.",
     );
   }
 }

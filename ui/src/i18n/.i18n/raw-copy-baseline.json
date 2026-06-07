@@ -41,7 +41,7 @@
       "kind": "html-text",
       "name": "text",
       "path": "ui/src/ui/app-render.ts",
-      "text": "OpenClaw"
+      "text": "Daneel Core"
     },
     {
       "count": 1,
@@ -447,7 +447,7 @@
       "kind": "html-text",
       "name": "text",
       "path": "ui/src/ui/components/dashboard-header.ts",
-      "text": "OpenClaw"
+      "text": "Daneel Core"
     },
     {
       "count": 1,
@@ -2645,7 +2645,7 @@
       "kind": "html-text",
       "name": "text",
       "path": "ui/src/ui/views/config-quick.ts",
-      "text": "Choose how much workspace context OpenClaw injects into each run. These profiles do not change your model, tools, channels, or theme."
+      "text": "Choose how much workspace context Daneel Core injects into each run. These profiles do not change your model, tools, channels, or theme."
     },
     {
       "count": 1,
@@ -4038,7 +4038,7 @@
       "kind": "html-text",
       "name": "text",
       "path": "ui/src/ui/views/login-gate.ts",
-      "text": "OpenClaw"
+      "text": "Daneel Core"
     },
     {
       "count": 1,
@@ -4661,20 +4661,6 @@
       "kind": "html-text",
       "name": "text",
       "path": "ui/src/ui/views/overview.ts",
-      "text": "→ set token"
-    },
-    {
-      "count": 1,
-      "kind": "html-text",
-      "name": "text",
-      "path": "ui/src/ui/views/overview.ts",
-      "text": "→ tokenized URL"
-    },
-    {
-      "count": 1,
-      "kind": "html-text",
-      "name": "text",
-      "path": "ui/src/ui/views/overview.ts",
       "text": "Auth token must be passed as a URL fragment:"
     },
     {
@@ -4682,21 +4668,35 @@
       "kind": "html-text",
       "name": "text",
       "path": "ui/src/ui/views/overview.ts",
-      "text": "openclaw dashboard --no-open"
+      "text": "daneel-core dashboard --no-open"
     },
     {
       "count": 1,
       "kind": "html-text",
       "name": "text",
       "path": "ui/src/ui/views/overview.ts",
-      "text": "openclaw devices list"
+      "text": "daneel-core devices list"
     },
     {
       "count": 2,
       "kind": "html-text",
       "name": "text",
       "path": "ui/src/ui/views/overview.ts",
-      "text": "openclaw doctor --generate-gateway-token"
+      "text": "daneel-core doctor --generate-gateway-token"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/overview.ts",
+      "text": "set token"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/overview.ts",
+      "text": "tokenized URL"
     },
     {
       "count": 1,

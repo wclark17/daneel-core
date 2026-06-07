@@ -157,6 +157,20 @@ describe("dashboardCommand", () => {
     expect(runtime.log).toHaveBeenCalledWith("Token auto-auth included in browser/clipboard URL.");
   });
 
+  it("prints the tokenized URL only when explicitly requested", async () => {
+    const secretToken = "super-secret-bearer-token";
+    mockSnapshot(secretToken);
+    copyToClipboardMock.mockResolvedValue(false);
+    detectBrowserOpenSupportMock.mockResolvedValue({ ok: false, reason: "ssh" });
+    formatControlUiSshHintMock.mockReturnValue("ssh hint without token");
+
+    await dashboardCommand(runtime, { noOpen: true, printAuthUrl: true });
+
+    expect(runtime.log).toHaveBeenCalledWith(
+      `Tokenized Dashboard URL: http://127.0.0.1:18789/#token=${secretToken}`,
+    );
+  });
+
   it("prints SSH hint when browser cannot open", async () => {
     mockSnapshot("shhhh");
     copyToClipboardMock.mockResolvedValue(false);
@@ -241,6 +255,7 @@ describe("dashboardCommand", () => {
       "Browser launch disabled (--no-open). Use the URL above.",
     );
     expectLogWith("OPENCLAW_GATEWAY_TOKEN");
+    expectLogWith("--print-auth-url");
   });
 
   it("respects --no-open with plain URL hint when clipboard fails and no token is configured", async () => {

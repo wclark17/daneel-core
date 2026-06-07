@@ -163,12 +163,13 @@ describe("registerMaintenanceCommands doctor action", () => {
   it("passes noOpen to dashboard command", async () => {
     dashboardCommand.mockResolvedValue(undefined);
 
-    await runMaintenanceCli(["dashboard", "--no-open"]);
+    await runMaintenanceCli(["dashboard", "--no-open", "--print-auth-url"]);
 
     expect(dashboardCommand).toHaveBeenCalledTimes(1);
     const [runtimeArg, options] = commandCall(dashboardCommand);
     expect(runtimeArg).toBe(runtime);
     expect(options.noOpen).toBe(true);
+    expect(options.printAuthUrl).toBe(true);
   });
 
   it("passes reset options to reset command", async () => {

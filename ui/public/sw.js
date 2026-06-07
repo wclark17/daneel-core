@@ -1,4 +1,4 @@
-// OpenClaw Control – Service Worker
+// Daneel Core Control - Service Worker
 // Handles offline caching and push notifications.
 
 const CACHE_PREFIX = "openclaw-control-";
@@ -107,10 +107,10 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data.json();
   } catch {
-    data = { title: "OpenClaw", body: event.data.text() };
+    data = { title: "Daneel Core", body: event.data.text() };
   }
 
-  const title = data.title || "OpenClaw";
+  const title = data.title || "Daneel Core";
   const options = {
     body: data.body || "",
     icon: "./apple-touch-icon.png",

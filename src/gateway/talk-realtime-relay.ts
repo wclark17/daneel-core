@@ -162,14 +162,14 @@ function isRelayAssistantEchoTranscript(session: RelaySession | undefined, text:
 }
 function buildForcedConsultCheckingPrompt(): string {
   return [
-    "Briefly tell the person that you are checking with OpenClaw.",
-    "Do not answer the request yet. Wait for the OpenClaw result before giving the actual answer.",
+    "Briefly tell the person that you are checking with Daneel Core.",
+    "Do not answer the request yet. Wait for the Daneel Core result before giving the actual answer.",
   ].join(" ");
 }
 
 function buildForcedConsultSpeechPrompt(text: string): string {
   return [
-    "OpenClaw finished checking. Speak this result naturally and concisely.",
+    "Daneel Core finished checking. Speak this result naturally and concisely.",
     "Do not mention tool calls, JSON, or internal routing.",
     "",
     text,

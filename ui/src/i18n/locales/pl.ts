@@ -728,7 +728,7 @@ export const pl: TranslationMap = {
       metadataUpgradeSummary:
         "To urządzenie jest już sparowane, ale zmiana metadanych oczekuje na zatwierdzenie.",
       mobileHint:
-        "Na urządzeniu mobilnym? Skopiuj pełny URL (w tym #token=...) z openclaw dashboard --no-open na komputerze.",
+        "Na urządzeniu mobilnym? Skopiuj pełny URL (w tym #token=...) z daneel-core dashboard --no-open na komputerze.",
       docsTitle: "Dokumentacja parowania urządzeń (otwiera się w nowej karcie)",
       docsLink: "Dokumentacja: Parowanie urządzeń",
     },
@@ -767,7 +767,7 @@ export const pl: TranslationMap = {
       modelAuthAttentionExpiredTitle: "Uwierzytelnianie modeli wygasło",
       modelAuthAttentionExpiringTitle: "Uwierzytelnianie modeli wkrótce wygaśnie",
       modelAuthAttentionExpiredDesc:
-        "{providers} — uwierzytelnij ponownie za pomocą openclaw models auth",
+        "{providers} — uwierzytelnij ponownie za pomocą daneel-core models auth",
       modelAuthAttentionExpiringEntry: "{provider} ({when})",
     },
     attention: {
@@ -1196,9 +1196,9 @@ export const pl: TranslationMap = {
         title: "Wymagane uwierzytelnienie",
         summary:
           "Gateway jest osiągalny, ale wymaga pasującego tokenu lub hasła, zanim ta przeglądarka będzie mogła się połączyć.",
-        stepPaste: "Wklej token z openclaw dashboard --no-open albo wpisz skonfigurowane hasło.",
+        stepPaste: "Wklej token z daneel-core dashboard --no-open albo wpisz skonfigurowane hasło.",
         stepGenerate:
-          "Jeśli token nie jest skonfigurowany, uruchom openclaw doctor --generate-gateway-token na hoście Gateway.",
+          "Jeśli token nie jest skonfigurowany, uruchom daneel-core doctor --generate-gateway-token na hoście Gateway.",
         stepConnect: "Kliknij ponownie Connect po zaktualizowaniu poświadczeń.",
       },
       authFailed: {
@@ -1206,7 +1206,7 @@ export const pl: TranslationMap = {
         summary:
           "Podane poświadczenia zostały odrzucone. Najczęstsza przyczyna to nieaktualny token lub token skopiowany z innego URL Gateway.",
         stepDashboard:
-          "Uruchom openclaw dashboard --no-open i otwórz świeży URL albo wklej jego token.",
+          "Uruchom daneel-core dashboard --no-open i otwórz świeży URL albo wklej jego token.",
         stepReplace:
           "Zastąp nieaktualne wartości tokenu/hasła; nie używaj ponownie tokenu z innego URL Gateway.",
         stepMode:
@@ -1230,8 +1230,8 @@ export const pl: TranslationMap = {
           "Ta przeglądarka wymaga jednorazowej zgody z hosta Gateway, zanim będzie mogła używać Control UI.",
         upgradeSummary:
           "Ta przeglądarka jest już znana, ale żądany dostęp się zmienił i wymaga nowej zgody.",
-        stepList: "Uruchom openclaw devices list na hoście Gateway.",
-        stepApproveId: "Zatwierdź to żądanie: openclaw devices approve {requestId}.",
+        stepList: "Uruchom daneel-core devices list na hoście Gateway.",
+        stepApproveId: "Zatwierdź to żądanie: daneel-core devices approve {requestId}.",
         stepApprove: "Zatwierdź oczekujące żądanie przeglądarki/urządzenia z tej listy.",
         stepReconnect: "Po zakończeniu zatwierdzania połącz się ponownie.",
       },
@@ -1258,21 +1258,21 @@ export const pl: TranslationMap = {
         summary:
           "Udostępniana Control UI i działający Gateway nie zgadzają się co do obsługiwanego protokołu połączenia.",
         stepDashboard:
-          "Otwórz ponownie udostępniany dashboard poleceniem openclaw dashboard, aby UI i Gateway pochodziły z tej samej instalacji.",
+          "Otwórz ponownie udostępniany dashboard poleceniem daneel-core dashboard, aby UI i Gateway pochodziły z tej samej instalacji.",
         stepDevUi:
           "Jeśli używasz pnpm ui:dev, przebuduj lub uruchom ponownie UI dev względem bieżącego checkoutu.",
         stepRestart:
-          "Zrestartuj Gateway po aktualizacji OpenClaw, aby udostępniał bieżący protokół.",
+          "Zrestartuj Gateway po aktualizacji Daneel Core, aby udostępniał bieżący protokół.",
       },
       network: {
         title: "Nie udało się połączyć",
         summary:
           "Przeglądarka nie mogła dokończyć połączenia z Gateway. Sprawdź cel i transport przed ponowną próbą z poświadczeniami.",
         stepGateway:
-          "Potwierdź, że Gateway działa, używając openclaw status lub openclaw gateway run.",
+          "Potwierdź, że Gateway działa, używając daneel-core status lub daneel-core gateway run.",
         stepUrl: "Sprawdź URL WebSocket i użyj wss://, gdy Gateway jest za HTTPS/Tailscale Serve.",
         stepDashboard:
-          "Otwórz ponownie dashboard przez openclaw dashboard --no-open, aby skopiować bieżący URL i szczegóły auth.",
+          "Otwórz ponownie dashboard przez daneel-core dashboard --no-open, aby skopiować bieżący URL i szczegóły auth.",
       },
     },
   },

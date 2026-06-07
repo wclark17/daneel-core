@@ -47,6 +47,12 @@ Commands:
   restart              Restart the systemd service
   status               Show service status and port listener state
   healthcheck          Check service, port, Telegram, model auth, and fresh logs
+  dashboard [options]  Open or print the Daneel Core gateway dashboard URL
+  gateway-token        Print the configured gateway token for local dashboard auth
+  doctor [options]     Run gateway diagnostics with the Daneel Core profile
+  devices [args...]    Manage dashboard/browser device pairing
+  gateway [args...]    Run or inspect the underlying gateway
+  models [args...]     Manage model configuration/auth
   jobs                 Show Core-owned recurring direct cron jobs
   run <jobname>        Run a Core-owned scheduled job
   update [options]     Rebuild/restart the frozen Core checkout; does not merge upstream
@@ -480,6 +486,55 @@ async function probe() {
     env: coreEnv(),
     cwd: repoRoot,
   });
+}
+
+async function delegateOpenClawCommand(command, args = process.argv.slice(3)) {
+  await ensureRuntimePath();
+  run(process.execPath, ["openclaw.mjs", command, ...args], {
+    env: coreEnv(),
+    cwd: repoRoot,
+  });
+}
+
+function normalizeSecretInputEnvId(value) {
+  if (typeof value === "string") {
+    const match = value.match(/^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/);
+    return match?.[1];
+  }
+  if (value && typeof value === "object" && value.source === "env") {
+    return typeof value.id === "string" && value.id.trim() ? value.id.trim() : undefined;
+  }
+  return undefined;
+}
+
+function gatewayToken() {
+  const env = coreEnv();
+  const cfgPath = env.OPENCLAW_CONFIG_PATH;
+  let token;
+  let tokenInput;
+  try {
+    const cfg = readJsonFile(cfgPath);
+    tokenInput = cfg.gateway?.auth?.token;
+    if (typeof tokenInput === "string" && !normalizeSecretInputEnvId(tokenInput)) {
+      token = tokenInput.trim();
+    } else {
+      const envId = normalizeSecretInputEnvId(tokenInput);
+      if (envId) {
+        token = env[envId]?.trim();
+      }
+    }
+  } catch (error) {
+    console.error(`Unable to read Core config at ${cfgPath}: ${error.message}`);
+    process.exit(1);
+  }
+  token ||= env.OPENCLAW_GATEWAY_TOKEN?.trim();
+  if (!token) {
+    console.error(
+      "No gateway token found in gateway.auth.token or OPENCLAW_GATEWAY_TOKEN for this Core profile.",
+    );
+    process.exit(1);
+  }
+  console.log(token);
 }
 
 function recentLogIssues() {
@@ -1692,6 +1747,16 @@ async function main() {
       return;
     case "healthcheck":
       await healthcheck();
+      return;
+    case "dashboard":
+    case "doctor":
+    case "devices":
+    case "gateway":
+    case "models":
+      await delegateOpenClawCommand(command);
+      return;
+    case "gateway-token":
+      gatewayToken();
       return;
     case "jobs":
     case "cron-status":
