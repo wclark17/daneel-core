@@ -35,6 +35,36 @@ const workspaceRoot =
 const safeUpdateScript =
   process.env.OPENCLAW_DANEEL_CORE_SAFE_UPDATE_SCRIPT ||
   "/usr/local/share/work/daneel-workspace/skills/daneel-core-safe-update/scripts/daneel_core_safe_update.sh";
+const hardeningPolicy = {
+  pluginsAllow: [
+    "active-memory",
+    "anthropic",
+    "codex",
+    "google",
+    "llm-task",
+    "memory-core",
+    "memory-wiki",
+    "openai",
+    "policy",
+    "telegram",
+  ],
+  channelsAllow: ["telegram"],
+  bundledSkillsAllow: [
+    "1password",
+    "github",
+    "healthcheck",
+    "session-logs",
+    "skill-creator",
+    "tmux",
+  ],
+  secretExecProvider: "onepassword",
+};
+const onePasswordResolverScript = path.join(
+  repoRoot,
+  "scripts",
+  "secrets",
+  "daneel-core-onepassword-resolver.mjs",
+);
 
 function usage() {
   console.log(`Usage: daneel-core <command>
@@ -54,6 +84,7 @@ Commands:
   devices [args...]    Manage dashboard/browser device pairing
   gateway [args...]    Run or inspect the underlying gateway
   models [args...]     Manage model configuration/auth
+  harden-profile       Apply Daneel Core runtime allowlists to the active profile
   jobs                 Show Core-owned recurring direct cron jobs
   run <jobname>        Run a Core-owned scheduled job
   update [options]     Rebuild/restart the frozen Core checkout; does not merge upstream
@@ -175,6 +206,128 @@ function readJsonFileOptional(file) {
   } catch {
     return null;
   }
+}
+
+function sortUnique(values) {
+  return [...new Set(values.filter((value) => typeof value === "string" && value.trim()))].sort(
+    (left, right) => left.localeCompare(right),
+  );
+}
+
+function ensureObject(parent, key) {
+  if (!parent[key] || typeof parent[key] !== "object" || Array.isArray(parent[key])) {
+    parent[key] = {};
+  }
+  return parent[key];
+}
+
+function arrayChanged(before, after) {
+  return JSON.stringify(before ?? []) !== JSON.stringify(after ?? []);
+}
+
+function applyDaneelCoreHardening(config) {
+  const changes = [];
+  const plugins = ensureObject(config, "plugins");
+  const nextPluginsAllow = sortUnique(hardeningPolicy.pluginsAllow);
+  if (arrayChanged(plugins.allow, nextPluginsAllow)) {
+    plugins.allow = nextPluginsAllow;
+    changes.push(`plugins.allow=${nextPluginsAllow.join(",")}`);
+  }
+  if (plugins.entries && typeof plugins.entries === "object" && !Array.isArray(plugins.entries)) {
+    const allowedPlugins = new Set(nextPluginsAllow);
+    for (const pluginId of Object.keys(plugins.entries)) {
+      if (!allowedPlugins.has(pluginId)) {
+        delete plugins.entries[pluginId];
+        changes.push(`plugins.entries.${pluginId}=removed`);
+      }
+    }
+  }
+
+  const channels = config.channels;
+  if (channels && typeof channels === "object" && !Array.isArray(channels)) {
+    const allowedChannels = new Set(hardeningPolicy.channelsAllow);
+    for (const [channelId, channelConfig] of Object.entries(channels)) {
+      if (!allowedChannels.has(channelId)) {
+        if (channelConfig && typeof channelConfig === "object" && !Array.isArray(channelConfig)) {
+          if (channelConfig.enabled !== false) {
+            channelConfig.enabled = false;
+            changes.push(`channels.${channelId}.enabled=false`);
+          }
+        } else {
+          channels[channelId] = { enabled: false };
+          changes.push(`channels.${channelId}.enabled=false`);
+        }
+      }
+    }
+  }
+  if (Array.isArray(config.enabledChannels)) {
+    const nextEnabledChannels = config.enabledChannels.filter((channelId) =>
+      hardeningPolicy.channelsAllow.includes(channelId),
+    );
+    if (arrayChanged(config.enabledChannels, nextEnabledChannels)) {
+      config.enabledChannels = nextEnabledChannels;
+      changes.push(`enabledChannels=${nextEnabledChannels.join(",")}`);
+    }
+  }
+
+  const skills = ensureObject(config, "skills");
+  const nextBundledSkillsAllow = sortUnique(hardeningPolicy.bundledSkillsAllow);
+  if (arrayChanged(skills.allowBundled, nextBundledSkillsAllow)) {
+    skills.allowBundled = nextBundledSkillsAllow;
+    changes.push(`skills.allowBundled=${nextBundledSkillsAllow.join(",")}`);
+  }
+
+  const secrets = ensureObject(config, "secrets");
+  const secretProviders = ensureObject(secrets, "providers");
+  const secretDefaults = ensureObject(secrets, "defaults");
+  const providerName = hardeningPolicy.secretExecProvider;
+  const nextProvider = {
+    source: "exec",
+    command: process.execPath,
+    args: [onePasswordResolverScript],
+    timeoutMs: 15000,
+    noOutputTimeoutMs: 15000,
+    maxOutputBytes: 131072,
+    jsonOnly: true,
+    passEnv: ["HOME", "OP_ACCOUNT", "OP_CLI_PATH", "OP_SERVICE_ACCOUNT_TOKEN"],
+  };
+  if (JSON.stringify(secretProviders[providerName]) !== JSON.stringify(nextProvider)) {
+    secretProviders[providerName] = nextProvider;
+    changes.push(`secrets.providers.${providerName}=op-read-resolver`);
+  }
+  if (secretDefaults.exec !== providerName) {
+    secretDefaults.exec = providerName;
+    changes.push(`secrets.defaults.exec=${providerName}`);
+  }
+
+  return changes;
+}
+
+async function hardenProfile(options = {}) {
+  const cfgPath = coreEnv().OPENCLAW_CONFIG_PATH;
+  const quiet = options.quiet === true;
+  const dryRun = options.dryRun === true;
+  const json = options.json === true;
+  let config = readJsonFileOptional(cfgPath);
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    config = {};
+  }
+  const changes = applyDaneelCoreHardening(config);
+  if (changes.length > 0 && !dryRun) {
+    await fsp.mkdir(path.dirname(cfgPath), { recursive: true });
+    await fsp.writeFile(cfgPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+    await fsp.chmod(cfgPath, 0o600);
+  }
+  if (json) {
+    console.log(JSON.stringify({ ok: true, changed: changes.length > 0, changes }, null, 2));
+  } else if (!quiet) {
+    const action = dryRun ? "would update" : changes.length > 0 ? "updated" : "already hardened";
+    console.log(`Daneel Core profile ${action}: ${cfgPath}`);
+    for (const change of changes) {
+      console.log(`- ${change}`);
+    }
+  }
+  return changes;
 }
 
 function formatCoreCommit(value) {
@@ -478,6 +631,7 @@ async function stopDetachedIfPresent() {
 
 async function installService() {
   await ensureRuntimePath();
+  await hardenProfile({ quiet: true });
   await installCommand();
   await stopDetachedIfPresent();
   await fsp.mkdir(path.dirname(unitPath), { recursive: true });
@@ -517,6 +671,7 @@ function logs(lines = "120", follow = false) {
 
 async function runService() {
   await ensureRuntimePath();
+  await hardenProfile({ quiet: true });
   const child = spawn(process.execPath, ["openclaw.mjs", "gateway"], {
     cwd: repoRoot,
     env: coreEnv(),
@@ -542,6 +697,7 @@ async function runService() {
 
 async function probe() {
   await ensureRuntimePath();
+  await hardenProfile({ quiet: true });
   run(process.execPath, ["openclaw.mjs", "channels", "status", "--probe"], {
     env: coreEnv(),
     cwd: repoRoot,
@@ -550,6 +706,9 @@ async function probe() {
 
 async function delegateOpenClawCommand(command, args = process.argv.slice(3)) {
   await ensureRuntimePath();
+  if (["dashboard", "doctor", "devices", "gateway", "models"].includes(command)) {
+    await hardenProfile({ quiet: true });
+  }
   run(process.execPath, ["openclaw.mjs", command, ...args], {
     env: coreEnv(),
     cwd: repoRoot,
@@ -1813,6 +1972,13 @@ async function main() {
       return;
     case "healthcheck":
       await healthcheck();
+      return;
+    case "harden-profile":
+      await hardenProfile({
+        dryRun: process.argv.includes("--dry-run"),
+        json: process.argv.includes("--json"),
+        quiet: process.argv.includes("--quiet"),
+      });
       return;
     case "dashboard":
     case "doctor":

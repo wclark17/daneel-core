@@ -48,6 +48,7 @@ wait_for_port() {
 
 start_gateway() {
   ensure_runtime_path
+  node "$REPO_ROOT/daneel-core.mjs" harden-profile --quiet
 
   local pid=""
   pid="$(current_pid || true)"
@@ -120,6 +121,7 @@ status_gateway() {
 
 probe_gateway() {
   ensure_runtime_path
+  node "$REPO_ROOT/daneel-core.mjs" harden-profile --quiet
   cd "$REPO_ROOT"
   env \
     OPENCLAW_PROFILE="$PROFILE" \
