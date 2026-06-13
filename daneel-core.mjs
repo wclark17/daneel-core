@@ -208,6 +208,56 @@ function readJsonFileOptional(file) {
   }
 }
 
+async function probeTelegramTokenFromConfig(timeoutMs = 10000) {
+  const config = readJsonFileOptional(path.join(stateDir, "openclaw.json"));
+  const telegram = config?.channels?.telegram;
+  if (!telegram?.enabled) {
+    return { configured: false, probeOk: false, detail: "telegram disabled in config" };
+  }
+
+  let token = typeof telegram.token === "string" ? telegram.token.trim() : "";
+  if (!token && typeof telegram.tokenFile === "string") {
+    try {
+      token = fs.readFileSync(telegram.tokenFile, "utf8").trim();
+    } catch {
+      token = "";
+    }
+  }
+  if (!token) {
+    return { configured: false, probeOk: false, detail: "telegram token unavailable in config" };
+  }
+  if (typeof fetch !== "function") {
+    return { configured: true, probeOk: false, detail: "fetch unavailable for token probe" };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/getMe`, {
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      return {
+        configured: true,
+        probeOk: false,
+        detail: `telegram token probe HTTP ${response.status}`,
+      };
+    }
+    const body = await response.json();
+    return {
+      configured: true,
+      probeOk: body?.ok === true,
+      botUsername: body?.result?.username || "unknown",
+      detail: body?.ok === true ? "telegram token probe ok" : "telegram token probe failed",
+    };
+  } catch (error) {
+    const reason = error?.name === "AbortError" ? "timeout" : error?.message || String(error);
+    return { configured: true, probeOk: false, detail: `telegram token probe ${reason}` };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function sortUnique(values) {
   return [...new Set(values.filter((value) => typeof value === "string" && value.trim()))].sort(
     (left, right) => left.localeCompare(right),
@@ -800,9 +850,10 @@ async function healthcheck() {
   };
 
   const active = systemctlOptional(["is-active", serviceUnit]);
+  const serviceOk = active.stdout.trim() === "active";
   add(
     "service",
-    active.stdout.trim() === "active",
+    serviceOk,
     active.stdout.trim() || active.stderr.trim() || `exit ${active.status}`,
   );
 
@@ -813,11 +864,13 @@ async function healthcheck() {
     enabled.stdout.trim() || enabled.stderr.trim() || `exit ${enabled.status}`,
   );
 
+  let portOk = false;
   const portNumber = Number(port);
   if (!Number.isInteger(portNumber) || portNumber <= 0) {
     add("port", false, `invalid port ${port}`);
   } else {
     const listener = await checkTcpPort("127.0.0.1", portNumber);
+    portOk = listener.ok;
     add("port", listener.ok, listener.detail);
   }
 
@@ -832,14 +885,30 @@ async function healthcheck() {
   if (!channel.ok) {
     add("telegram", false, channel.error || "channels status failed");
   } else {
-    const account = channel.value?.channelAccounts?.telegram?.[0];
-    add(
-      "telegram",
-      Boolean(account?.configured && account?.running && account?.probe?.ok),
-      account
-        ? `configured=${account.configured} running=${account.running} connected=${account.connected} probe=${account.probe?.ok} bot=${account.probe?.bot?.username || account.probe?.botInfo?.username || "unknown"}`
-        : "telegram account missing",
-    );
+    const account =
+      channel.value?.channelAccounts?.telegram?.[0] ?? channel.value?.channels?.telegram;
+    const connected = account?.connected ?? "unknown";
+    const botUsername =
+      account?.probe?.bot?.username || account?.probe?.botInfo?.username || "unknown";
+    const statusSource = channel.value?.channelAccounts?.telegram?.[0]
+      ? "channelAccounts"
+      : account
+        ? "channels"
+        : "missing";
+    if (account) {
+      add(
+        "telegram",
+        Boolean(account.configured && account.running && account.probe?.ok),
+        `configured=${account.configured} running=${account.running} connected=${connected} probe=${account.probe?.ok} bot=${botUsername} source=${statusSource}`,
+      );
+    } else {
+      const fallback = await probeTelegramTokenFromConfig();
+      add(
+        "telegram",
+        Boolean(serviceOk && portOk && fallback.configured && fallback.probeOk),
+        `runtime account missing; ${fallback.detail} bot=${fallback.botUsername || "unknown"} source=config-token-fallback`,
+      );
+    }
   }
 
   const models = parseJsonRun(process.execPath, ["openclaw.mjs", "models", "status", "--json"], {
