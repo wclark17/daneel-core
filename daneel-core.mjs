@@ -80,24 +80,25 @@ Commands:
   healthcheck          Check service, port, Telegram, model auth, and fresh logs
   dashboard [options]  Open or print the Daneel Core gateway dashboard URL
   gateway-token        Print the configured gateway token for local dashboard auth
-  doctor [options]     Run gateway diagnostics with the Daneel Core profile
+  doctor [options]     Run Daneel Core diagnostics for the active profile
   devices [args...]    Manage dashboard/browser device pairing
   gateway [args...]    Run or inspect the underlying gateway
   models [args...]     Manage model configuration/auth
   harden-profile       Apply Daneel Core runtime allowlists to the active profile
   jobs                 Show Core-owned recurring direct cron jobs
   run <jobname>        Run a Core-owned scheduled job
+  backup [options]     Snapshot current Core config and built runtime assets
   update [options]     Rebuild/restart the frozen Core checkout; does not merge upstream
   rollback [target]    Restore a rollback bundle created by update, then restart/healthcheck
+  restore [target]     Restore last-known-good built assets from an update bundle
   probe                Probe Daneel Core channels for the active profile
   logs [lines]         Show recent service logs
   follow-logs          Follow service logs
   run-service          Run the gateway in the foreground for systemd
   install-command      Symlink this launcher to ~/.local/bin/daneel-core
 
-Core job names:
+  Core job names:
   daily-eodhd-value-scan
-  openclaw-security-update-watcher
   daily-todo-republish
   mets-ticket-price-refresh
   sonarr-status-refresh
@@ -208,6 +209,10 @@ function readJsonFileOptional(file) {
   }
 }
 
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
 async function probeTelegramTokenFromConfig(timeoutMs = 10000) {
   const config = readJsonFileOptional(path.join(stateDir, "openclaw.json"));
   const telegram = config?.channels?.telegram;
@@ -259,9 +264,13 @@ async function probeTelegramTokenFromConfig(timeoutMs = 10000) {
 }
 
 function sortUnique(values) {
-  return [...new Set(values.filter((value) => typeof value === "string" && value.trim()))].sort(
-    (left, right) => left.localeCompare(right),
-  );
+  return [
+    ...new Set(
+      (Array.isArray(values) ? values : []).filter(
+        (value) => typeof value === "string" && value.trim(),
+      ),
+    ),
+  ].sort((left, right) => left.localeCompare(right));
 }
 
 function ensureObject(parent, key) {
@@ -282,6 +291,10 @@ function applyDaneelCoreHardening(config) {
   if (arrayChanged(plugins.allow, nextPluginsAllow)) {
     plugins.allow = nextPluginsAllow;
     changes.push(`plugins.allow=${nextPluginsAllow.join(",")}`);
+  }
+  if (plugins.bundledDiscovery !== "allowlist") {
+    plugins.bundledDiscovery = "allowlist";
+    changes.push("plugins.bundledDiscovery=allowlist");
   }
   if (plugins.entries && typeof plugins.entries === "object" && !Array.isArray(plugins.entries)) {
     const allowedPlugins = new Set(nextPluginsAllow);
@@ -348,6 +361,14 @@ function applyDaneelCoreHardening(config) {
   if (secretDefaults.exec !== providerName) {
     secretDefaults.exec = providerName;
     changes.push(`secrets.defaults.exec=${providerName}`);
+  }
+
+  const commands = ensureObject(config, "commands");
+  const ownerAllowFrom = sortUnique(commands.ownerAllowFrom);
+  if (!ownerAllowFrom.includes("telegram:6210106819")) {
+    ownerAllowFrom.push("telegram:6210106819");
+    commands.ownerAllowFrom = sortUnique(ownerAllowFrom);
+    changes.push("commands.ownerAllowFrom includes telegram:6210106819");
   }
 
   return changes;
@@ -970,10 +991,10 @@ async function healthcheck() {
           : " openai default requires api.responses.write, which the stored OAuth token lacks";
       }
     } else if (String(defaultModel || "").startsWith("openai-codex/")) {
-      routeOk = runtimeId === "openclaw";
+      routeOk = runtimeId === "codex";
       routeDetail += routeOk
-        ? " codex transport pinned through openclaw harness"
-        : " openai-codex default must be pinned to openclaw harness";
+        ? " legacy openai-codex model pinned through codex harness"
+        : " legacy openai-codex default must be migrated to openai/* or pinned through codex";
     }
     add("model-route", routeOk, routeDetail);
   } catch (error) {
@@ -1011,6 +1032,228 @@ async function healthcheck() {
       }
     }
   }
+  if (!ok) {
+    process.exit(1);
+  }
+}
+
+function fileModeOctal(file) {
+  try {
+    return fs.statSync(file).mode & 0o777;
+  } catch {
+    return null;
+  }
+}
+
+function formatMode(mode) {
+  return mode == null ? "missing" : mode.toString(8).padStart(3, "0");
+}
+
+function checkCoreRuntimePolicy(config) {
+  const plugins = config.plugins || {};
+  const entries = plugins.entries || {};
+  const pluginAllow = Array.isArray(plugins.allow) ? sortUnique(plugins.allow) : [];
+  const allowedPlugins = sortUnique(hardeningPolicy.pluginsAllow);
+  const enabledPluginIds = Object.entries(entries)
+    .filter(([, entry]) => entry?.enabled !== false)
+    .map(([pluginId]) => pluginId)
+    .sort();
+  const unexpectedEnabled = enabledPluginIds.filter(
+    (pluginId) => !allowedPlugins.includes(pluginId),
+  );
+  const telegram = config.channels?.telegram;
+  const nonTelegramChannels = Object.entries(config.channels || {})
+    .filter(([channelId]) => channelId !== "telegram")
+    .filter(([, channelConfig]) => channelConfig && channelConfig.enabled !== false)
+    .map(([channelId]) => channelId);
+
+  return {
+    pluginAllowOk: !arrayChanged(pluginAllow, allowedPlugins),
+    pluginAllow,
+    allowedPlugins,
+    bundledDiscovery: plugins.bundledDiscovery || "unset",
+    bundledDiscoveryOk: plugins.bundledDiscovery === "allowlist",
+    enabledPluginIds,
+    unexpectedEnabled,
+    telegramOk: Boolean(telegram?.enabled),
+    nonTelegramChannels,
+    skillsAllow: Array.isArray(config.skills?.allowBundled)
+      ? sortUnique(config.skills.allowBundled)
+      : [],
+  };
+}
+
+function checkCoreOwner(config) {
+  const ownerAllowFrom = Array.isArray(config.commands?.ownerAllowFrom)
+    ? sortUnique(config.commands.ownerAllowFrom)
+    : [];
+  return {
+    ownerAllowFrom,
+    ok: ownerAllowFrom.includes("telegram:6210106819"),
+  };
+}
+
+function checkCoreSecrets(config) {
+  const gatewayToken = config.gateway?.auth?.token;
+  const plaintextGatewayToken =
+    typeof gatewayToken === "string" &&
+    gatewayToken.trim() &&
+    !normalizeSecretInputEnvId(gatewayToken);
+  return {
+    plaintextGatewayToken: Boolean(plaintextGatewayToken),
+    gatewayTokenRef: !plaintextGatewayToken && Boolean(gatewayToken),
+  };
+}
+
+function printCoreDoctorLine(status, label, detail) {
+  console.log(`${status.padEnd(4)} ${label}: ${detail}`);
+}
+
+async function coreDoctor(args = process.argv.slice(3)) {
+  if (args.includes("--raw")) {
+    await delegateOpenClawCommand(
+      "doctor",
+      args.filter((arg) => arg !== "--raw"),
+    );
+    return;
+  }
+
+  await ensureRuntimePath();
+  const fix = args.includes("--fix");
+  const json = args.includes("--json");
+  const cfgPath = coreEnv().OPENCLAW_CONFIG_PATH;
+  let config = readJsonFileOptional(cfgPath);
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    config = {};
+  }
+
+  let desiredConfig = cloneJson(config);
+  const changes = applyDaneelCoreHardening(desiredConfig);
+  const fixed = [];
+  if (fix) {
+    if (changes.length > 0) {
+      await fsp.writeFile(cfgPath, `${JSON.stringify(desiredConfig, null, 2)}\n`, { mode: 0o600 });
+      await fsp.chmod(cfgPath, 0o600);
+      fixed.push(...changes);
+    }
+    const stateMode = fileModeOctal(stateDir);
+    if (stateMode !== 0o700) {
+      await fsp.chmod(stateDir, 0o700);
+      fixed.push(`chmod 700 ${stateDir}`);
+    }
+    config = readJsonFileOptional(cfgPath) || config;
+    desiredConfig = cloneJson(config);
+  }
+
+  const active = systemctlOptional(["is-active", serviceUnit]);
+  const enabled = systemctlOptional(["is-enabled", serviceUnit]);
+  const portNumber = Number(port);
+  const listener =
+    Number.isInteger(portNumber) && portNumber > 0
+      ? await checkTcpPort("127.0.0.1", portNumber)
+      : { ok: false, detail: `invalid port ${port}` };
+  const runtimePolicy = checkCoreRuntimePolicy(config);
+  const owner = checkCoreOwner(config);
+  const secrets = checkCoreSecrets(config);
+  const stateMode = fileModeOctal(stateDir);
+  const configMode = fileModeOctal(cfgPath);
+  const compatibilityStateExists = fs.existsSync(path.join(homeDir, ".openclaw"));
+  const rawDoctorHint =
+    "use `daneel-core doctor --raw` only when debugging inherited runtime internals";
+
+  const checks = [
+    {
+      name: "service",
+      ok: active.stdout.trim() === "active",
+      detail: active.stdout.trim() || active.stderr.trim() || `exit ${active.status}`,
+    },
+    {
+      name: "service-enabled",
+      ok: enabled.stdout.trim() === "enabled",
+      detail: enabled.stdout.trim() || enabled.stderr.trim() || `exit ${enabled.status}`,
+    },
+    { name: "port", ok: listener.ok, detail: listener.detail },
+    {
+      name: "runtime-policy",
+      ok:
+        runtimePolicy.pluginAllowOk &&
+        runtimePolicy.bundledDiscoveryOk &&
+        runtimePolicy.telegramOk &&
+        runtimePolicy.unexpectedEnabled.length === 0 &&
+        runtimePolicy.nonTelegramChannels.length === 0,
+      detail: `telegram-only=${runtimePolicy.telegramOk && runtimePolicy.nonTelegramChannels.length === 0} plugins=${runtimePolicy.enabledPluginIds.join(",") || "none"} bundledDiscovery=${runtimePolicy.bundledDiscovery}`,
+    },
+    {
+      name: "command-owner",
+      ok: owner.ok,
+      detail: owner.ownerAllowFrom.length
+        ? owner.ownerAllowFrom.join(",")
+        : "missing; run `daneel-core doctor --fix`",
+    },
+    {
+      name: "state-permissions",
+      ok: stateMode === 0o700 && configMode === 0o600,
+      detail: `${stateDir}=${formatMode(stateMode)} openclaw.json=${formatMode(configMode)}`,
+    },
+  ];
+  const warnings = [];
+  if (secrets.plaintextGatewayToken) {
+    warnings.push(
+      "gateway.auth.token is still plaintext; move it to 1Password SecretRef during the next secret cleanup pass",
+    );
+  }
+  if (compatibilityStateExists) {
+    warnings.push(
+      "~/.openclaw exists as a compatibility/workspace state tree; Daneel Core active runtime remains ~/.openclaw-daneel-core",
+    );
+  }
+  if (runtimePolicy.skillsAllow.length > 0) {
+    warnings.push(`bundled skill allowlist: ${runtimePolicy.skillsAllow.join(",")}`);
+  }
+  if (!fix && changes.length > 0) {
+    warnings.push(`pending Core profile fixes: ${changes.join("; ")}`);
+  }
+
+  const ok = checks.every((check) => check.ok);
+  const payload = {
+    ok,
+    checkedAt: new Date().toISOString(),
+    profile,
+    stateDir,
+    configPath: cfgPath,
+    serviceUnit,
+    port,
+    fixed,
+    checks,
+    warnings,
+    rawDoctorHint,
+  };
+
+  if (json) {
+    console.log(JSON.stringify(payload, null, 2));
+  } else {
+    console.log("Daneel Core doctor");
+    console.log(`Profile: ${profile}`);
+    console.log(`State: ${stateDir}`);
+    console.log(`Config: ${cfgPath}`);
+    console.log("");
+    for (const check of checks) {
+      printCoreDoctorLine(check.ok ? "OK" : "WARN", check.name, check.detail);
+    }
+    for (const warning of warnings) {
+      printCoreDoctorLine("INFO", "note", warning);
+    }
+    if (fixed.length > 0) {
+      console.log("");
+      console.log("Applied fixes:");
+      for (const change of fixed) {
+        console.log(`- ${change}`);
+      }
+    }
+    console.log("");
+    console.log(rawDoctorHint);
+  }
+
   if (!ok) {
     process.exit(1);
   }
@@ -1084,7 +1327,6 @@ function legacyCronJobNames() {
     "mission-control-state-builder",
     "mission-control-health-check",
     "daily-eodhd-value-scan",
-    "openclaw-security-update-watcher",
     "daily-sonarr-wanted-report",
     "openclaw-state-backup-local",
     "gomining-price-update",
@@ -1393,80 +1635,6 @@ async function eodhdValueScan() {
   }
 }
 
-async function openclawSecurityUpdateWatcher() {
-  const json = hasCommandFlag("--json");
-  const preflightOnly = hasCommandFlag("--preflight-only");
-  const script = requireWorkspaceFile("scripts/cron_openclaw_security_update_watcher.py");
-
-  let health;
-  try {
-    health = checkCoreHealthForScheduledJob();
-  } catch (error) {
-    const message = `openclaw-security-update-watcher Core preflight failed: ${error.message}`;
-    if (json) {
-      console.log(
-        JSON.stringify(
-          {
-            ok: false,
-            command: "openclaw-security-update-watcher",
-            checkedAt: new Date().toISOString(),
-            workspaceRoot,
-            error: message,
-          },
-          null,
-          2,
-        ),
-      );
-    } else {
-      console.error(message);
-    }
-    process.exit(1);
-  }
-
-  if (preflightOnly) {
-    if (json) {
-      console.log(
-        JSON.stringify(
-          {
-            ok: true,
-            command: "openclaw-security-update-watcher",
-            checkedAt: new Date().toISOString(),
-            workspaceRoot,
-            coreHealthCheckedAt: health.checkedAt,
-            mode: "preflight-only",
-          },
-          null,
-          2,
-        ),
-      );
-    } else {
-      console.log("NO_REPLY");
-    }
-    return;
-  }
-
-  const result = runOptional("python3", [script], {
-    cwd: workspaceRoot,
-    env: process.env,
-    timeout: 180 * 1000,
-  });
-  if (result.stdout) {
-    process.stdout.write(result.stdout);
-    if (!result.stdout.endsWith("\n")) {
-      process.stdout.write("\n");
-    }
-  }
-  if (result.stderr) {
-    process.stderr.write(result.stderr);
-    if (!result.stderr.endsWith("\n")) {
-      process.stderr.write("\n");
-    }
-  }
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
-  }
-}
-
 async function dailyTodoRepublish() {
   const json = hasCommandFlag("--json");
   const preflightOnly = hasCommandFlag("--preflight-only");
@@ -1548,7 +1716,7 @@ async function metsTicketPriceRefresh() {
   const script = requireWorkspaceFile("mission-control/fetch_mets_prices.py");
   requireWorkspaceFile("mission-control/build_state.py");
   requireWorkspaceFile("mission-control/service_account.json");
-  requireFile(path.join(os.homedir(), ".openclaw", "openclaw.json"), "Daneel Core config");
+  requireFile(path.join(stateDir, "openclaw.json"), "Daneel Core config");
 
   let health;
   try {
@@ -1972,8 +2140,6 @@ const coreJobRunners = new Map([
   ["daily-eodhd-value-scan", eodhdValueScan],
   ["eodhd-value-scan", eodhdValueScan],
   ["value-scan", eodhdValueScan],
-  ["openclaw-security-update-watcher", openclawSecurityUpdateWatcher],
-  ["security-update-watcher", openclawSecurityUpdateWatcher],
   ["daily-todo-republish", dailyTodoRepublish],
   ["todo-republish", dailyTodoRepublish],
   ["mets-ticket-price-refresh", metsTicketPriceRefresh],
@@ -2050,11 +2216,13 @@ async function main() {
       });
       return;
     case "dashboard":
-    case "doctor":
     case "devices":
     case "gateway":
     case "models":
       await delegateOpenClawCommand(command);
+      return;
+    case "doctor":
+      await coreDoctor();
       return;
     case "gateway-token":
       gatewayToken();
@@ -2073,8 +2241,14 @@ async function main() {
     case "update":
       runFrozenCoreUpdate(process.argv.slice(3));
       return;
+    case "backup":
+      runSafeUpdate("backup", process.argv.slice(3));
+      return;
     case "rollback":
       runSafeUpdate("rollback", process.argv.slice(3));
+      return;
+    case "restore":
+      runSafeUpdate("restore", process.argv.slice(3));
       return;
     case "probe":
       await probe();
