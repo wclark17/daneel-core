@@ -103,7 +103,7 @@ Commands:
   mets-ticket-price-refresh
   sonarr-status-refresh
   daily-sonarr-wanted-report
-  openclaw-state-backup-local
+  compat-state-backup-local
   gomining-price-update
 `);
 }
@@ -1328,6 +1328,7 @@ function legacyCronJobNames() {
     "mission-control-health-check",
     "daily-eodhd-value-scan",
     "daily-sonarr-wanted-report",
+    "daneel-core-openclaw-state-backup-local",
     "openclaw-state-backup-local",
     "gomining-price-update",
     "daily-todo-republish",
@@ -1954,23 +1955,24 @@ async function dailySonarrWantedReport() {
   }
 }
 
-async function openclawStateBackupLocal() {
+async function compatStateBackupLocal() {
   const json = hasCommandFlag("--json");
   const preflightOnly = hasCommandFlag("--preflight-only");
   const script = requireWorkspaceFile("scripts/backup_openclaw_state_sync.py");
   requireFile(path.join(homeDir, ".openclaw"), "Daneel Core compatibility state directory");
+  const commandName = "compat-state-backup-local";
 
   let health;
   try {
     health = checkCoreHealthForScheduledJob();
   } catch (error) {
-    const message = `openclaw-state-backup-local Core preflight failed: ${error.message}`;
+    const message = `${commandName} Core preflight failed: ${error.message}`;
     if (json) {
       console.log(
         JSON.stringify(
           {
             ok: false,
-            command: "openclaw-state-backup-local",
+            command: commandName,
             checkedAt: new Date().toISOString(),
             workspaceRoot,
             error: message,
@@ -1991,7 +1993,7 @@ async function openclawStateBackupLocal() {
         JSON.stringify(
           {
             ok: true,
-            command: "openclaw-state-backup-local",
+            command: commandName,
             checkedAt: new Date().toISOString(),
             workspaceRoot,
             coreHealthCheckedAt: health.checkedAt,
@@ -2148,8 +2150,10 @@ const coreJobRunners = new Map([
   ["sonarr-status", sonarrStatusRefresh],
   ["daily-sonarr-wanted-report", dailySonarrWantedReport],
   ["sonarr-wanted-report", dailySonarrWantedReport],
-  ["openclaw-state-backup-local", openclawStateBackupLocal],
-  ["state-backup-local", openclawStateBackupLocal],
+  ["compat-state-backup-local", compatStateBackupLocal],
+  ["core-compat-state-backup-local", compatStateBackupLocal],
+  ["openclaw-state-backup-local", compatStateBackupLocal],
+  ["state-backup-local", compatStateBackupLocal],
   ["gomining-price-update", gominingPriceUpdate],
   ["gomining-prices", gominingPriceUpdate],
 ]);
