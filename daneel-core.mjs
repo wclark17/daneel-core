@@ -848,9 +848,15 @@ function recentLogIssues() {
     /startup model warmup failed/i,
     /Plugin approval unavailable/i,
   ];
+  const falsePositivePatterns = [/\bno\s+fatal\b/i, /\b0\s+fatal\b/i, /\bzero\s+fatal\b/i];
   const matches = recent
     .split(/\r?\n/)
-    .filter((line) => patterns.some((pattern) => pattern.test(line)))
+    .filter((line) => {
+      if (!patterns.some((pattern) => pattern.test(line))) {
+        return false;
+      }
+      return !falsePositivePatterns.some((pattern) => pattern.test(line));
+    })
     .slice(-10);
   return {
     ok: matches.length === 0,
