@@ -23,6 +23,63 @@ and dependency folders:
 - `test`: compatibility, migration, package, and live-test fixtures.
 - `packages`, `ui`, `skills`, `qa`: package imports, docs, and lab tooling.
 
+## Classification Pass
+
+The first classification pass used ripgrep over the working tree, excluding
+`node_modules`, `vendor`, `dist`, `build`, and `pnpm-lock.yaml`.
+
+| Bucket                         | Files | Recommendation                                                                   |
+| ------------------------------ | ----: | -------------------------------------------------------------------------------- |
+| `runtime-config-env-state`     | 3,079 | Add Daneel aliases first; do not rename in place.                                |
+| `other`                        | 2,740 | Inspect before touching; mixed root files, extension source, and assets.         |
+| `tests-fixtures-migrations`    | 2,604 | Keep many legacy names; update only alongside behavior changes.                  |
+| `source-internal`              | 1,350 | Internal type/module names; migrate only with focused tests.                     |
+| `mobile-desktop-app-ids`       |   715 | Treat as platform identity migration; high risk.                                 |
+| `docs-current-user-facing`     |   643 | Best first rename target where text describes current Daneel Core behavior.      |
+| `scripts-ci-build-release`     |   435 | Add Daneel aliases and labels; keep old release/migration scripts until retired. |
+| `package-api`                  |   242 | Public/package compatibility; alias first, package rename last.                  |
+| `plugin-extension-manifests`   |   237 | Plugin contract surface; do not rename broadly.                                  |
+| `ui-source`                    |   144 | Good medium-risk branding target after docs.                                     |
+| `attribution`                  |     9 | Keep visible as fork/license history.                                            |
+| `generated-protocol-artifacts` |     5 | Rename only by changing generator/protocol names deliberately.                   |
+
+The count is file-based, not occurrence-based. Some files contain many
+references and some buckets overlap conceptually; this table is for migration
+triage, not proof that a bucket is internally uniform.
+
+## First Editable Targets
+
+Start with current user-facing docs that still present `openclaw` as the active
+operator command. Examples from the first pass:
+
+- `docs/logging.md`
+- `docs/install/index.md`
+- `docs/install/uninstall.md`
+- `docs/install/development-channels.md`
+- `docs/cli/tui.md`
+- `docs/cli/configure.md`
+- `docs/prose.md`
+
+These can usually be rewritten to say `daneel-core` for Daneel Core operation,
+while retaining `openclaw` examples only when describing upstream installs,
+legacy compatibility, or migration from old OpenClaw state.
+
+## Alias-First Runtime Targets
+
+Runtime code has many `OPENCLAW_*`, `.openclaw`, and `OpenClawConfig`
+references. The first real runtime migration should introduce aliases rather
+than replacements:
+
+- `DANEEL_CORE_STATE_DIR` fallback to `OPENCLAW_STATE_DIR`.
+- `DANEEL_CORE_CONFIG_PATH` fallback to `OPENCLAW_CONFIG_PATH`.
+- `DANEEL_CORE_PROFILE` fallback to `OPENCLAW_PROFILE`.
+- `DANEEL_CORE_GATEWAY_PORT` fallback to `OPENCLAW_GATEWAY_PORT`.
+- Daneel-facing help text where the command is already invoked through
+  `daneel-core`.
+
+Keep old environment variables functional until all live services, scripts, and
+healthchecks have moved.
+
 ## Keep As Attribution
 
 These references should remain visible:
