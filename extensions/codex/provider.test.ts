@@ -19,7 +19,13 @@ afterEach(() => {
 function expectStaticFallbackCatalog(
   result: Awaited<ReturnType<typeof buildCodexProviderCatalog>>,
 ) {
-  expect(result.provider.models.map((model) => model.id)).toEqual(["gpt-5.5", "gpt-5.4-mini"]);
+  expect(result.provider.models.map((model) => model.id)).toEqual([
+    "gpt-5.5",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-5.4-mini",
+  ]);
 }
 
 function createFakeCodexClient(): CodexAppServerClient {
@@ -398,7 +404,7 @@ describe("codex provider", () => {
 
     expect(
       result && "provider" in result ? result.provider.models.map((model) => model.id) : [],
-    ).toEqual(["gpt-5.5", "gpt-5.4-mini"]);
+    ).toEqual(["gpt-5.5", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.4-mini"]);
   });
 
   it("adds the GPT-5 prompt overlay to Codex provider runs", () => {
