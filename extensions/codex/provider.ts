@@ -143,8 +143,17 @@ export async function buildCodexProviderCatalog(
     });
   }
   return {
-    provider: buildCodexProviderConfig(discovered.length > 0 ? discovered : FALLBACK_CODEX_MODELS),
+    provider: buildCodexProviderConfig(mergeDiscoveredWithFallback(discovered)),
   };
+}
+
+function mergeDiscoveredWithFallback(discovered: CodexAppServerModel[]): CodexAppServerModel[] {
+  if (discovered.length === 0) {
+    return FALLBACK_CODEX_MODELS;
+  }
+  const discoveredIds = new Set(discovered.map((model) => model.id.trim()).filter(Boolean));
+  const supplemental = FALLBACK_CODEX_MODELS.filter((model) => !discoveredIds.has(model.id));
+  return supplemental.length > 0 ? [...discovered, ...supplemental] : discovered;
 }
 
 function resolveCodexDynamicModel(modelId: string) {

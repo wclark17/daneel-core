@@ -121,7 +121,14 @@ describe("codex provider", () => {
       auth: "token",
       api: "openai-chatgpt-responses",
     });
-    expect(result.provider.models).toHaveLength(1);
+    expect(result.provider.models.map((model) => model.id)).toEqual([
+      "gpt-5.4",
+      "gpt-5.5",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "gpt-5.4-mini",
+    ]);
     expectRecordFields(result.provider.models[0], {
       id: "gpt-5.4",
       name: "gpt-5.4",
@@ -186,7 +193,14 @@ describe("codex provider", () => {
       sharedClient: false,
     });
     const resultProvider = result && "provider" in result ? result.provider : undefined;
-    expect(resultProvider?.models.map((model) => model.id)).toEqual(["gpt-5.4"]);
+    expect(resultProvider?.models.map((model) => model.id)).toEqual([
+      "gpt-5.4",
+      "gpt-5.5",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "gpt-5.4-mini",
+    ]);
   });
 
   it("pages through live discovery before building the provider catalog", async () => {
@@ -231,7 +245,14 @@ describe("codex provider", () => {
       limit: 100,
       sharedClient: false,
     });
-    expect(result.provider.models.map((model) => model.id)).toEqual(["gpt-5.4", "gpt-5.5"]);
+    expect(result.provider.models.map((model) => model.id)).toEqual([
+      "gpt-5.4",
+      "gpt-5.5",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "gpt-5.4-mini",
+    ]);
   });
 
   it("reports discovery failures before using the fallback catalog", async () => {
