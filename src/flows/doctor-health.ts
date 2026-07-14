@@ -1,6 +1,7 @@
 // Doctor health flow renders interactive health check output.
 import { intro as clackIntro, outro as clackOutro } from "@clack/prompts";
 import { stylePromptTitle } from "../../packages/terminal-core/src/prompt-style.js";
+import { resolveCliName } from "../cli/cli-name.js";
 import type { DoctorOptions } from "../commands/doctor-prompter.js";
 import type { RuntimeEnv } from "../runtime.js";
 
@@ -28,7 +29,7 @@ export async function doctorCommand(runtime?: RuntimeEnv, options: DoctorOptions
   const { printWizardHeader } = await import("../commands/onboard-helpers.js");
   const prompter = createDoctorPrompter({ runtime: effectiveRuntime, options });
   printWizardHeader(effectiveRuntime);
-  intro("OpenClaw doctor");
+  intro(resolveCliName() === "daneel-core" ? "Daneel Core raw doctor" : "OpenClaw doctor");
 
   const { resolveOpenClawPackageRoot } = await import("../infra/openclaw-root.js");
   const root = await resolveOpenClawPackageRoot({

@@ -76,7 +76,8 @@ Commands:
   start                Start the systemd service
   stop                 Stop the systemd service
   restart              Restart the systemd service
-  status               Show service status and port listener state
+  status [--usage]     Show service status; with --usage, show provider usage
+  usage                Show OpenAI/Codex provider usage
   healthcheck          Check service, port, Telegram, model auth, and fresh logs
   dashboard [options]  Open or print the Daneel Core gateway dashboard URL
   gateway-token        Print the configured gateway token for local dashboard auth
@@ -84,6 +85,9 @@ Commands:
   devices [args...]    Manage dashboard/browser device pairing
   gateway [args...]    Run or inspect the underlying gateway
   models [args...]     Manage model configuration/auth
+  tui [args...]        Open the terminal UI against the Daneel Core profile
+  chat [args...]       Open local embedded terminal chat UI
+  terminal [args...]   Alias for local embedded terminal chat UI
   harden-profile       Apply Daneel Core runtime allowlists to the active profile
   jobs                 Show Core-owned recurring direct cron jobs
   run <jobname>        Run a Core-owned scheduled job
@@ -550,6 +554,7 @@ function coreEnv() {
     OPENCLAW_CONFIG_PATH: path.join(stateDir, "openclaw.json"),
     OPENCLAW_GATEWAY_PORT: port,
     OPENCLAW_PORT: port,
+    OPENCLAW_CLI_NAME: "daneel-core",
     PATH: buildRuntimePath(),
   };
 }
@@ -777,7 +782,11 @@ async function probe() {
 
 async function delegateOpenClawCommand(command, args = process.argv.slice(3)) {
   await ensureRuntimePath();
-  if (["dashboard", "doctor", "devices", "gateway", "models"].includes(command)) {
+  if (
+    ["dashboard", "doctor", "devices", "gateway", "models", "tui", "chat", "terminal"].includes(
+      command,
+    )
+  ) {
     await hardenProfile({ quiet: true });
   }
   run(process.execPath, ["openclaw.mjs", command, ...args], {
@@ -2213,7 +2222,14 @@ async function main() {
       systemctl(["restart", serviceUnit]);
       return;
     case "status":
+      if (process.argv.slice(3).includes("--usage")) {
+        await delegateOpenClawCommand("status");
+        return;
+      }
       status();
+      return;
+    case "usage":
+      await delegateOpenClawCommand("status", ["--usage", ...process.argv.slice(3)]);
       return;
     case "healthcheck":
       await healthcheck();
@@ -2229,6 +2245,9 @@ async function main() {
     case "devices":
     case "gateway":
     case "models":
+    case "tui":
+    case "chat":
+    case "terminal":
       await delegateOpenClawCommand(command);
       return;
     case "doctor":

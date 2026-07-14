@@ -1605,7 +1605,7 @@
     "mac:open": "open dist/OpenClaw.app",
     "mac:package": "bash scripts/package-mac-app.sh",
     "mac:restart": "bash scripts/restart-mac.sh",
-    "daneel-core": "node scripts/run-node.mjs",
+    "daneel-core": "node scripts/daneel-core-script.mjs",
     "daneel-core:rpc": "node scripts/run-node.mjs agent --mode rpc --json",
     "openclaw": "node scripts/run-node.mjs",
     "openclaw:rpc": "node scripts/run-node.mjs agent --mode rpc --json",

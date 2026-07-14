@@ -2,7 +2,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   detectUiProtocolFreshnessIssues,
   uiProtocolFreshnessIssueToHealthFinding,
@@ -11,6 +11,15 @@ import {
 } from "./doctor-ui.js";
 
 const tempRoots: string[] = [];
+
+beforeEach(() => {
+  vi.stubEnv("OPENCLAW_CLI_NAME", "");
+  vi.stubEnv("OPENCLAW_PROFILE", "");
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 function issue(overrides: Partial<UiProtocolFreshnessIssue> = {}): UiProtocolFreshnessIssue {
   return {
@@ -82,6 +91,16 @@ describe("UI protocol freshness health mapping", () => {
         dryRunSafe: false,
       },
     ]);
+  });
+
+  it("uses the Daneel Core CLI name in repair hints when provided", () => {
+    vi.stubEnv("OPENCLAW_CLI_NAME", "daneel-core");
+    vi.stubEnv("OPENCLAW_PROFILE", "daneel-core");
+
+    const finding = uiProtocolFreshnessIssueToHealthFinding(issue());
+
+    expect(finding.fixHint).toContain("daneel-core doctor --fix");
+    expect(finding.fixHint).not.toContain("openclaw --profile");
   });
 
   it("does not report dry-run effects when UI sources are unavailable", () => {

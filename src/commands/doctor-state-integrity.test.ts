@@ -35,6 +35,8 @@ type EnvSnapshot = {
   OPENCLAW_STATE_DIR?: string;
   OPENCLAW_OAUTH_DIR?: string;
   OPENCLAW_AGENT_DIR?: string;
+  OPENCLAW_PROFILE?: string;
+  OPENCLAW_CLI_NAME?: string;
 };
 
 function captureEnv(): EnvSnapshot {
@@ -44,6 +46,8 @@ function captureEnv(): EnvSnapshot {
     OPENCLAW_STATE_DIR: process.env.OPENCLAW_STATE_DIR,
     OPENCLAW_OAUTH_DIR: process.env.OPENCLAW_OAUTH_DIR,
     OPENCLAW_AGENT_DIR: process.env.OPENCLAW_AGENT_DIR,
+    OPENCLAW_PROFILE: process.env.OPENCLAW_PROFILE,
+    OPENCLAW_CLI_NAME: process.env.OPENCLAW_CLI_NAME,
   };
 }
 
@@ -160,6 +164,8 @@ describe("doctor state integrity oauth dir checks", () => {
     process.env.OPENCLAW_STATE_DIR = path.join(tempHome, ".openclaw");
     delete process.env.OPENCLAW_OAUTH_DIR;
     delete process.env.OPENCLAW_AGENT_DIR;
+    delete process.env.OPENCLAW_PROFILE;
+    delete process.env.OPENCLAW_CLI_NAME;
     fs.mkdirSync(process.env.OPENCLAW_STATE_DIR, { recursive: true, mode: 0o700 });
     noteMock.mockClear();
   });
@@ -176,6 +182,19 @@ describe("doctor state integrity oauth dir checks", () => {
     const text = stateIntegrityText();
     expect(text).toContain("OAuth dir not present");
     expect(text).not.toContain("CRITICAL: OAuth dir missing");
+  });
+
+  it("does not warn about the compatibility state dir for the Daneel Core profile", async () => {
+    process.env.OPENCLAW_PROFILE = "daneel-core";
+    process.env.OPENCLAW_CLI_NAME = "daneel-core";
+    process.env.OPENCLAW_STATE_DIR = path.join(tempHome, ".openclaw-daneel-core");
+    fs.mkdirSync(process.env.OPENCLAW_STATE_DIR, { recursive: true, mode: 0o700 });
+    fs.mkdirSync(path.join(tempHome, ".openclaw"), { recursive: true, mode: 0o700 });
+
+    const text = await runStateIntegrityText({});
+
+    expect(text).not.toContain("Multiple state directories detected");
+    expect(text).not.toContain("This can split session history");
   });
 
   it("does not prompt for oauth dir when whatsapp is configured without persisted auth state", async () => {

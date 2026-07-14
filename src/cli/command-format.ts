@@ -15,8 +15,11 @@ export function formatCliCommand(
   command: string,
   env: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
 ): string {
-  const cliName = resolveCliName();
+  const cliName = resolveCliName(process.argv, env);
   const normalizedCommand = replaceCliName(command, cliName);
+  if (cliName !== "openclaw") {
+    return normalizedCommand;
+  }
   const rawContainer = env.OPENCLAW_CONTAINER_HINT?.trim();
   const container = rawContainer && CONTAINER_HINT_RE.test(rawContainer) ? rawContainer : undefined;
   const profile = normalizeProfileName(env.OPENCLAW_PROFILE);

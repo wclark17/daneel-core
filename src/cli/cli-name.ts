@@ -3,11 +3,18 @@ import path from "node:path";
 
 const DEFAULT_CLI_NAME = "openclaw";
 
-const KNOWN_CLI_NAMES = new Set([DEFAULT_CLI_NAME]);
+const KNOWN_CLI_NAMES = new Set([DEFAULT_CLI_NAME, "daneel-core"]);
 const CLI_PREFIX_RE = /^(?:((?:pnpm|npm|bunx|npx)\s+))?(openclaw)\b/;
 
 /** Resolve the displayed CLI binary name from argv, falling back to `openclaw`. */
-export function resolveCliName(argv: string[] = process.argv): string {
+export function resolveCliName(
+  argv: string[] = process.argv,
+  env: Record<string, string | undefined> = process.env,
+): string {
+  const explicit = env.OPENCLAW_CLI_NAME?.trim();
+  if (explicit && KNOWN_CLI_NAMES.has(explicit)) {
+    return explicit;
+  }
   const argv1 = argv[1];
   if (!argv1) {
     return DEFAULT_CLI_NAME;

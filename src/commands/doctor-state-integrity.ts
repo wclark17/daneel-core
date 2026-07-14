@@ -266,6 +266,22 @@ function findOtherStateDirs(stateDir: string): string[] {
   return found;
 }
 
+function isDaneelCoreProfile(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.OPENCLAW_PROFILE?.trim().toLowerCase() === "daneel-core";
+}
+
+function isDaneelCoreCompatibilityStateDir(candidate: string, defaultStateDir: string): boolean {
+  if (!isDaneelCoreProfile()) {
+    return false;
+  }
+  const resolvedCandidate = path.resolve(candidate);
+  return (
+    resolvedCandidate === path.resolve(defaultStateDir) ||
+    resolvedCandidate === path.resolve(os.homedir(), ".openclaw") ||
+    path.basename(resolvedCandidate) === ".openclaw"
+  );
+}
+
 function isPathUnderRoot(targetPath: string, rootPath: string): boolean {
   const normalizedTarget = path.resolve(targetPath);
   const normalizedRoot = path.resolve(rootPath);
@@ -828,12 +844,18 @@ export async function noteStateIntegrity(
   }
 
   const extraStateDirs = new Set<string>();
-  if (path.resolve(stateDir) !== path.resolve(defaultStateDir)) {
+  if (
+    path.resolve(stateDir) !== path.resolve(defaultStateDir) &&
+    !isDaneelCoreCompatibilityStateDir(defaultStateDir, defaultStateDir)
+  ) {
     if (existsDir(defaultStateDir)) {
       extraStateDirs.add(defaultStateDir);
     }
   }
   for (const other of findOtherStateDirs(stateDir)) {
+    if (isDaneelCoreCompatibilityStateDir(other, defaultStateDir)) {
+      continue;
+    }
     extraStateDirs.add(other);
   }
   if (extraStateDirs.size > 0) {

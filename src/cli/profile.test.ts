@@ -251,6 +251,15 @@ describe("formatCliCommand", () => {
     );
   });
 
+  it("uses explicit Daneel Core CLI name without adding profile flags", () => {
+    expect(
+      formatCliCommand("openclaw doctor --fix", {
+        OPENCLAW_CLI_NAME: "daneel-core",
+        OPENCLAW_PROFILE: "daneel-core",
+      }),
+    ).toBe("daneel-core doctor --fix");
+  });
+
   it("trims whitespace from profile", () => {
     expect(formatCliCommand("openclaw doctor --fix", { OPENCLAW_PROFILE: "  jbopenclaw  " })).toBe(
       "openclaw --profile jbopenclaw doctor --fix",

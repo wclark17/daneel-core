@@ -37,11 +37,14 @@ describe("doctor session transcript repair", () => {
   let root: string;
 
   beforeEach(async () => {
+    vi.stubEnv("OPENCLAW_CLI_NAME", "");
+    vi.stubEnv("OPENCLAW_PROFILE", "");
     note.mockClear();
     root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-doctor-transcripts-"));
   });
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
     await fs.rm(root, { recursive: true, force: true });
   });
 
@@ -147,6 +150,34 @@ describe("doctor session transcript repair", () => {
     expect(message).toContain("legacy state");
     expect(message).toContain('Run "openclaw doctor --fix"');
     expect(countNonEmptyLines(await fs.readFile(filePath, "utf-8"))).toBe(3);
+  });
+
+  it("uses the Daneel Core CLI name in repair hints when provided", async () => {
+    vi.stubEnv("OPENCLAW_CLI_NAME", "daneel-core");
+    vi.stubEnv("OPENCLAW_PROFILE", "daneel-core");
+    const filePath = await writeTranscript([
+      { type: "session", version: 3, id: "session-1", timestamp: "2026-04-25T00:00:00Z" },
+      {
+        type: "message",
+        id: "legacy-assistant",
+        parentId: null,
+        message: {
+          role: "assistant",
+          provider: "openai-codex",
+          api: "openai-codex-responses",
+          content: [{ type: "text", text: "hello" }],
+        },
+      },
+    ]);
+
+    await noteSessionTranscriptHealth({
+      shouldRepair: false,
+      sessionDirs: [path.dirname(filePath)],
+    });
+
+    const [message] = requireFirstMockCall(note, "doctor note") as [string, string];
+    expect(message).toContain('Run "daneel-core doctor --fix"');
+    expect(message).not.toContain("openclaw --profile");
   });
 
   it("rewrites legacy OpenAI Codex transcript metadata only during doctor repair", async () => {

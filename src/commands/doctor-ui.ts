@@ -2,6 +2,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { note } from "../../packages/terminal-core/src/note.js";
+import { formatCliCommand } from "../cli/command-format.js";
 import type { HealthFinding, HealthRepairEffect } from "../flows/health-checks.js";
 import {
   resolveControlUiDistIndexHealth,
@@ -130,8 +131,8 @@ export function uiProtocolFreshnessIssueToHealthFinding(
     path: issue.uiIndexPath,
     fixHint: issue.canBuild
       ? issue.kind === "missing-assets"
-        ? "Run `openclaw doctor --fix` to build Control UI assets."
-        : "Run `openclaw doctor --fix --force` to rebuild Control UI assets, or run `pnpm ui:build`."
+        ? `Run \`${formatCliCommand("openclaw doctor --fix")}\` to build Control UI assets.`
+        : `Run \`${formatCliCommand("openclaw doctor --fix --force")}\` to rebuild Control UI assets, or run \`pnpm ui:build\`.`
       : "Install from a source checkout with ui/ sources, then run `pnpm ui:build`.",
   };
 }
