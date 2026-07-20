@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { formatCliCommand } from "../cli/command-format.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { SkillStatusEntry } from "../skills/discovery/status.js";
 import { withEnvAsync } from "../test-utils/env.js";
@@ -361,8 +362,7 @@ describe("registerCoreHealthChecks", () => {
         path: "agents.defaults.model.primary",
         target: "openai/gpt-5.5",
         requirement: "Codex plugin enabled for routes that use the Codex runtime.",
-        fixHint:
-          "Run `openclaw doctor --fix`: it enables plugins.entries.codex, or set the affected OpenAI models to an OpenClaw runtime policy.",
+        fixHint: `Run \`${formatCliCommand("openclaw doctor --fix")}\`: it enables plugins.entries.codex, or set the affected OpenAI models to the built-in runtime policy.`,
       }),
     ]);
     expect(findings[0]?.message).toContain("Codex plugin is disabled by config");
@@ -593,8 +593,7 @@ describe("registerCoreHealthChecks", () => {
         checkId: "core/doctor/gateway-auth",
         severity: "warning",
         message: expect.stringContaining("Gateway token SecretRef could not be resolved:"),
-        fixHint:
-          "Run `openclaw doctor --allow-exec` to verify exec SecretRefs during doctor, or `openclaw secrets audit --allow-exec` to audit all exec SecretRefs.",
+        fixHint: `Run \`${formatCliCommand("openclaw doctor --allow-exec")}\` to verify exec SecretRefs during doctor, or \`${formatCliCommand("openclaw secrets audit --allow-exec")}\` to audit all exec SecretRefs.`,
       }),
     );
   });

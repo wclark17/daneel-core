@@ -1,6 +1,7 @@
 // Doctor core checks collect environment, config, and runtime readiness diagnostics.
 import path from "node:path";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
+import { formatCliCommand } from "../cli/command-format.js";
 import {
   detectLegacyClawdBrowserProfileResidue,
   maybeArchiveLegacyClawdBrowserProfileResidue,
@@ -126,8 +127,7 @@ const gatewayConfigCheck: HealthCheck = {
         severity: "warning",
         message: "gateway.mode is unset; gateway start will be blocked.",
         path: "gateway.mode",
-        fixHint:
-          "Run `openclaw configure` and set Gateway mode (local/remote), or `openclaw config set gateway.mode local`.",
+        fixHint: `Run \`${formatCliCommand("openclaw configure")}\` and set Gateway mode (local/remote), or \`${formatCliCommand("openclaw config set gateway.mode local")}\`.`,
       });
     }
     if (ctx.cfg.gateway?.mode !== "remote" && hasAmbiguousGatewayAuthModeConfig(ctx.cfg)) {
@@ -137,8 +137,7 @@ const gatewayConfigCheck: HealthCheck = {
         message:
           "gateway.auth.token and gateway.auth.password are both configured while gateway.auth.mode is unset; auth selection is ambiguous.",
         path: "gateway.auth.mode",
-        fixHint:
-          "Set an explicit mode: `openclaw config set gateway.auth.mode token` or `... password`.",
+        fixHint: `Set an explicit mode: \`${formatCliCommand("openclaw config set gateway.auth.mode token")}\` or \`${formatCliCommand("openclaw config set gateway.auth.mode password")}\`.`,
       });
     }
     return findings;
@@ -161,8 +160,7 @@ const commandOwnerCheck: HealthCheck = {
         message:
           "No command owner is configured. Owner-only commands (/diagnostics, /export-trajectory, /config, exec approvals) have no allowed sender.",
         path: "commands.ownerAllowFrom",
-        fixHint:
-          "Set commands.ownerAllowFrom to your channel user id, e.g. `openclaw config set commands.ownerAllowFrom '[\"telegram:123456789\"]'`.",
+        fixHint: `Set commands.ownerAllowFrom to your channel user id, e.g. \`${formatCliCommand("openclaw config set commands.ownerAllowFrom '[\"telegram:123456789\"]'")}\`.`,
       },
     ];
   },
@@ -192,7 +190,7 @@ export function buildGatewayTokenSecretRefUnavailableMessage(params: {
 
 export function buildGatewayTokenSecretRefFixHint(ref: SecretRef): string {
   if (ref.source === "exec") {
-    return "Run `openclaw doctor --allow-exec` to verify exec SecretRefs during doctor, or `openclaw secrets audit --allow-exec` to audit all exec SecretRefs.";
+    return `Run \`${formatCliCommand("openclaw doctor --allow-exec")}\` to verify exec SecretRefs during doctor, or \`${formatCliCommand("openclaw secrets audit --allow-exec")}\` to audit all exec SecretRefs.`;
   }
   return "Resolve or rotate the external secret source, then rerun doctor.";
 }
@@ -275,7 +273,7 @@ const gatewayAuthCheck: HealthCheck = {
         severity: "warning",
         message: "Gateway auth is off or missing a token.",
         path: "gateway.auth",
-        fixHint: "Run `openclaw doctor --fix --generate-gateway-token` to generate a token.",
+        fixHint: `Run \`${formatCliCommand("openclaw doctor --fix --generate-gateway-token")}\` to generate a token.`,
       },
     ];
   },
@@ -358,7 +356,7 @@ const legacyStateCheck: HealthCheck = {
         severity: "warning",
         message: line.replace(/^- /, ""),
         path: detected.stateDir,
-        fixHint: "Run `openclaw doctor --fix` to migrate legacy state.",
+        fixHint: `Run \`${formatCliCommand("openclaw doctor --fix")}\` to migrate legacy state.`,
       }),
     );
   },
@@ -639,11 +637,11 @@ const codexSessionRoutesCheck: HealthCheck = {
         fixHint: issue.blockedOutsideEntry
           ? [
               "Enable plugin loading and remove codex from plugins.deny,",
-              "or set the affected OpenAI models to an OpenClaw runtime policy.",
+              "or set the affected OpenAI models to the built-in runtime policy.",
             ].join(" ")
           : [
-              "Run `openclaw doctor --fix`: it enables plugins.entries.codex,",
-              "or set the affected OpenAI models to an OpenClaw runtime policy.",
+              `Run \`${formatCliCommand("openclaw doctor --fix")}\`: it enables plugins.entries.codex,`,
+              "or set the affected OpenAI models to the built-in runtime policy.",
             ].join(" "),
       }),
     );
@@ -701,8 +699,7 @@ const workspaceStatusCheck: HealthCheck = {
           legacy.legacyDirs.length === 1 ? "y" : "ies"
         } alongside the active workspace.`,
         path: workspaceDir,
-        fixHint:
-          "Inspect the legacy directories and migrate or remove them; see `openclaw doctor` for the detailed migration prompt.",
+        fixHint: `Inspect the legacy directories and migrate or remove them; see \`${formatCliCommand("openclaw doctor")}\` for the detailed migration prompt.`,
       },
     ];
   },
@@ -750,8 +747,7 @@ function unavailableSkillToFinding(skill: SkillStatusEntry): HealthFinding {
     severity: "warning",
     message: `${skill.name} is allowed but unavailable: ${formatMissingSkillSummary(skill)}.`,
     path: skillReadinessPath(skill),
-    fixHint:
-      "Install/configure the missing requirement, or run `openclaw doctor --fix` to disable unused unavailable skills.",
+    fixHint: `Install/configure the missing requirement, or run \`${formatCliCommand("openclaw doctor --fix")}\` to disable unused unavailable skills.`,
   };
 }
 
@@ -783,8 +779,7 @@ function browserResidueFinding(residue: LegacyClawdBrowserProfileResidue): Healt
     message: `Legacy managed browser profile residue was found at ${residue.legacyProfileDir}.`,
     path: residue.legacyProfileDir,
     ocPath: "oc://state/browser/clawd",
-    fixHint:
-      "Run `openclaw doctor --fix` to archive the stale clawd profile safely instead of deleting it in place.",
+    fixHint: `Run \`${formatCliCommand("openclaw doctor --fix")}\` to archive the stale clawd profile safely instead of deleting it in place.`,
   };
 }
 
