@@ -29,6 +29,7 @@ describe("iconForTab", () => {
   it("returns stable icons for every tab", () => {
     expect(Object.fromEntries(ALL_TABS.map((tab) => [tab, iconForTab(tab)]))).toEqual({
       chat: "messageSquare",
+      workspace: "brain",
       overview: "barChart",
       activity: "activity",
       workboard: "folder",
@@ -65,6 +66,7 @@ describe("titleForTab", () => {
   it("returns expected titles for every tab", () => {
     expect(Object.fromEntries(ALL_TABS.map((tab) => [tab, titleForTab(tab)]))).toEqual({
       chat: "Chat",
+      workspace: "Daneel Workspace",
       overview: "Overview",
       activity: "Activity",
       workboard: "Workboard",
@@ -95,6 +97,7 @@ describe("subtitleForTab", () => {
   it("returns expected subtitles for every tab", () => {
     expect(Object.fromEntries(ALL_TABS.map((tab) => [tab, subtitleForTab(tab)]))).toEqual({
       chat: "Gateway chat for quick interventions.",
+      workspace: "Chats, memory, projects, and skills in one place.",
       overview: "Status, entry points, health.",
       activity: "Browser-local tool activity summaries.",
       workboard: "Agent work queue and session handoff.",
@@ -108,7 +111,7 @@ describe("subtitleForTab", () => {
       skillWorkshop: "Review, refine, and apply proposals before they become live skills.",
       nodes: "Paired devices and commands.",
       dreams: "Memory dreaming, consolidation, and reflection.",
-      config: "Edit openclaw.json.",
+      config: "Edit the gateway config.",
       communications: "Channels, messages, and audio settings.",
       appearance: "Theme, UI, and setup wizard settings.",
       automation: "Commands, hooks, cron, and plugins.",

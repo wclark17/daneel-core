@@ -402,6 +402,7 @@ export const uk: TranslationMap = {
     resize: "Змінити розмір бічної панелі",
   },
   tabs: {
+    workspace: "Daneel Workspace",
     agents: "Агенти",
     activity: "Активність",
     overview: "Огляд",
@@ -427,6 +428,7 @@ export const uk: TranslationMap = {
     dreams: "Сни",
   },
   subtitles: {
+    workspace: "Chats, memory, projects, and skills in one place.",
     agents: "Робочі простори, інструменти, ідентичності.",
     activity: "Підсумки активності інструментів, локальні для браузера.",
     overview: "Стан, точки входу, справність.",

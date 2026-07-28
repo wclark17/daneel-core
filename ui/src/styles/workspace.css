@@ -1,0 +1,259 @@
+.daneel-workspace {
+  display: grid;
+  gap: 20px;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 8px 4px 36px;
+}
+
+.daneel-workspace__hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 26px 28px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 20px;
+  background:
+    radial-gradient(
+      circle at 85% 10%,
+      color-mix(in srgb, var(--accent) 18%, transparent),
+      transparent 38%
+    ),
+    linear-gradient(145deg, color-mix(in srgb, var(--card) 96%, var(--accent) 4%), var(--card));
+}
+
+.daneel-workspace__eyebrow {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+}
+
+.daneel-workspace__hero h1 {
+  margin: 7px 0 4px;
+  font-size: clamp(28px, 4vw, 44px);
+  line-height: 1;
+}
+
+.daneel-workspace__hero p,
+.daneel-workspace__panel-head p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.daneel-workspace__search {
+  display: flex;
+  gap: 10px;
+}
+
+.daneel-workspace__search input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 15px;
+}
+
+.daneel-workspace__stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.daneel-workspace__stats > div {
+  display: grid;
+  gap: 2px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.daneel-workspace__stats strong {
+  font-size: 23px;
+}
+
+.daneel-workspace__stats span,
+.daneel-workspace small,
+.daneel-workspace__footnote {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.daneel-workspace__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.daneel-workspace__panel {
+  min-width: 0;
+  min-height: 310px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--card);
+}
+
+.daneel-workspace__panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.daneel-workspace__panel-head h2 {
+  margin: 0 0 3px;
+  font-size: 18px;
+}
+
+.daneel-workspace__list,
+.daneel-workspace__cards,
+.daneel-workspace__memory {
+  display: grid;
+  gap: 8px;
+}
+
+.daneel-workspace__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 16px;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--card) 86%, var(--text) 4%);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.daneel-workspace__row:hover {
+  background: color-mix(in srgb, var(--card) 78%, var(--accent) 12%);
+}
+
+.daneel-workspace__row > span,
+.daneel-workspace__project > div,
+.daneel-workspace__skill > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.daneel-workspace__row strong,
+.daneel-workspace__row small,
+.daneel-workspace__project strong,
+.daneel-workspace__skill strong,
+.daneel-workspace__skill small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.daneel-workspace__row time {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.daneel-workspace__memory {
+  max-height: 330px;
+  overflow: auto;
+}
+
+.daneel-workspace__memory pre {
+  margin: 0;
+  padding: 11px 12px;
+  overflow: hidden;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.daneel-workspace__project,
+.daneel-workspace__skill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--card) 86%, var(--text) 4%);
+}
+
+.daneel-workspace__project {
+  justify-content: space-between;
+}
+
+.daneel-workspace__status {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.daneel-workspace__skill-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.daneel-workspace__skill > span {
+  flex: 0 0 22px;
+  text-align: center;
+}
+
+.daneel-workspace__skill i {
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.daneel-workspace__skill i.is-ready {
+  background: var(--success, #22c55e);
+}
+
+.daneel-workspace__empty {
+  display: grid;
+  min-height: 160px;
+  place-items: center;
+  color: var(--muted);
+  text-align: center;
+}
+
+.daneel-workspace__footnote {
+  margin-top: 12px;
+}
+
+@media (max-width: 900px) {
+  .daneel-workspace__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .daneel-workspace__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .daneel-workspace__hero {
+    padding: 20px;
+  }
+
+  .daneel-workspace__skill-grid {
+    grid-template-columns: 1fr;
+  }
+}

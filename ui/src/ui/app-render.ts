@@ -25,7 +25,12 @@ import {
   switchChatSession,
   switchChatSessionAndWait,
 } from "./app-render.helpers.ts";
-import { hasOperatorAdminAccess, hasOperatorWriteAccess, warnQueryToken } from "./app-settings.ts";
+import {
+  hasOperatorAdminAccess,
+  hasOperatorWriteAccess,
+  refreshActiveTab,
+  warnQueryToken,
+} from "./app-settings.ts";
 import type { AppViewState } from "./app-view-state.ts";
 import { reconcileChatRunLifecycle } from "./chat/run-lifecycle.ts";
 import {
@@ -675,6 +680,7 @@ const lazySkillWorkshop = createLazyView(
 const lazySkills = createLazyView(() => import("./views/skills.ts"), notifyLazyViewChanged);
 const lazyUsage = createLazyView(() => import("./views/usage.ts"), notifyLazyViewChanged);
 const lazyWorkboard = createLazyView(() => import("./views/workboard.ts"), notifyLazyViewChanged);
+const lazyWorkspace = createLazyView(() => import("./views/workspace.ts"), notifyLazyViewChanged);
 
 type ChatWorkspaceFilesState = {
   activeName: string | null;
@@ -2491,6 +2497,37 @@ export function renderApp(state: AppViewState) {
                 ${headerError ? html`<div class="pill danger">${headerError}</div>` : nothing}
               </div>
             </section>`}
+        ${state.tab === "workspace"
+          ? renderLazyView(lazyWorkspace, (m) => {
+              const workboardState = getWorkboardState(state);
+              return m.renderWorkspace({
+                query: state.workspaceQuery,
+                sessions: state.sessionsResult?.sessions ?? [],
+                sessionsLoading: state.sessionsLoading,
+                sessionsError: state.sessionsError,
+                memoryContent: state.agentFileContents["MEMORY.md"] ?? "",
+                memoryLoading: state.agentFilesLoading,
+                memoryError: state.agentFilesError,
+                dreamDiaryContent: state.dreamDiaryContent ?? "",
+                projects: workboardState.cards,
+                projectsLoading: workboardState.loading,
+                projectsError: workboardState.error,
+                skills: state.skillsReport?.skills ?? [],
+                skillsLoading: state.skillsLoading,
+                skillsError: state.skillsError,
+                onQueryChange: (query) => {
+                  state.workspaceQuery = query;
+                  requestHostUpdate?.();
+                },
+                onOpenChat: (sessionKey) => {
+                  switchChatSession(state, sessionKey);
+                  state.setTab("chat");
+                },
+                onNavigate: (tab) => state.setTab(tab),
+                onRefresh: () => void refreshActiveTab(state),
+              });
+            })
+          : nothing}
         ${state.tab === "overview"
           ? renderOverview({
               connected: state.connected,

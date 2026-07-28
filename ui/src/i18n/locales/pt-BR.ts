@@ -401,6 +401,7 @@ export const pt_BR: TranslationMap = {
     resize: "Redimensionar barra lateral",
   },
   tabs: {
+    workspace: "Daneel Workspace",
     agents: "Agentes",
     activity: "Atividade",
     overview: "Visão Geral",
@@ -426,6 +427,7 @@ export const pt_BR: TranslationMap = {
     dreams: "Sonhos",
   },
   subtitles: {
+    workspace: "Chats, memory, projects, and skills in one place.",
     agents: "Espaços, ferramentas, identidades.",
     activity: "Resumos de atividade de ferramentas locais do navegador.",
     overview: "Status, entrada, saúde.",

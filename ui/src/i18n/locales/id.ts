@@ -401,6 +401,7 @@ export const id: TranslationMap = {
     resize: "Ubah ukuran bilah samping",
   },
   tabs: {
+    workspace: "Daneel Workspace",
     agents: "Agen",
     activity: "Aktivitas",
     overview: "Ikhtisar",
@@ -426,6 +427,7 @@ export const id: TranslationMap = {
     dreams: "Mimpi",
   },
   subtitles: {
+    workspace: "Chats, memory, projects, and skills in one place.",
     agents: "Ruang kerja, alat, identitas.",
     activity: "Ringkasan aktivitas alat lokal browser.",
     overview: "Status, titik masuk, kesehatan.",

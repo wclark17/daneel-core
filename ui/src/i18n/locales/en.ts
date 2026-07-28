@@ -399,6 +399,7 @@ export const en: TranslationMap = {
     resize: "Resize sidebar",
   },
   tabs: {
+    workspace: "Daneel Workspace",
     agents: "Agents",
     activity: "Activity",
     overview: "Overview",
@@ -424,6 +425,7 @@ export const en: TranslationMap = {
     dreams: "Dreaming",
   },
   subtitles: {
+    workspace: "Chats, memory, projects, and skills in one place.",
     agents: "Workspaces, tools, identities.",
     activity: "Browser-local tool activity summaries.",
     overview: "Status, entry points, health.",

@@ -400,6 +400,7 @@ export const ko: TranslationMap = {
     resize: "사이드바 크기 조절",
   },
   tabs: {
+    workspace: "Daneel Workspace",
     agents: "에이전트",
     activity: "활동",
     overview: "개요",
@@ -425,6 +426,7 @@ export const ko: TranslationMap = {
     dreams: "드리밍",
   },
   subtitles: {
+    workspace: "Chats, memory, projects, and skills in one place.",
     agents: "워크스페이스, 도구, 정체성.",
     activity: "브라우저 로컬 도구 활동 요약입니다.",
     overview: "상태, 진입점, 상태 정보.",

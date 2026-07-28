@@ -422,6 +422,36 @@ export async function refreshActiveTab(host: SettingsHost, opts?: { chatStartup?
   const refreshRun = beginControlUiRefresh(host, host.tab);
   try {
     switch (host.tab) {
+      case "workspace": {
+        await Promise.all([
+          loadAgents(app),
+          loadSessions(app, {
+            activeMinutes: 0,
+            limit: 200,
+            includeGlobal: true,
+            includeUnknown: true,
+            showArchived: false,
+          }),
+          loadSkills(app),
+          loadWorkboard({
+            host,
+            client: app.client,
+            force: true,
+            requestUpdate: host.requestUpdate,
+          }),
+        ]);
+        const agentId = host.agentsList?.defaultId ?? host.agentsList?.agents?.[0]?.id ?? "main";
+        host.selectedAgentId = agentId;
+        await Promise.all([
+          loadAgentFiles(app, agentId),
+          loadDreamDiary(app),
+          loadWikiMemoryPalace(app),
+        ]);
+        if (app.agentFilesList?.files.some((file) => file.name === "MEMORY.md")) {
+          await loadAgentFileContent(app, agentId, "MEMORY.md");
+        }
+        break;
+      }
       case "config":
       case "communications":
       case "appearance":

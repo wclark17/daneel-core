@@ -404,6 +404,7 @@ export const de: TranslationMap = {
     resize: "Seitenleiste in der Größe ändern",
   },
   tabs: {
+    workspace: "Daneel Workspace",
     agents: "Agenten",
     activity: "Aktivität",
     overview: "Übersicht",
@@ -429,6 +430,7 @@ export const de: TranslationMap = {
     dreams: "Träume",
   },
   subtitles: {
+    workspace: "Chats, memory, projects, and skills in one place.",
     agents: "Agent-Arbeitsbereiche, Tools und Identitäten verwalten.",
     activity: "Browser-lokale Zusammenfassungen der Tool-Aktivität.",
     overview: "Gateway-Status, Einstiegspunkte und eine schnelle Zustandsprüfung.",

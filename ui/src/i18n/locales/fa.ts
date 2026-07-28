@@ -402,6 +402,7 @@ export const fa: TranslationMap = {
     resize: "تغییر اندازه نوار کناری",
   },
   tabs: {
+    workspace: "Daneel Workspace",
     agents: "عامل‌ها",
     activity: "فعالیت",
     overview: "نمای کلی",
@@ -427,6 +428,7 @@ export const fa: TranslationMap = {
     dreams: "رؤیاپردازی",
   },
   subtitles: {
+    workspace: "Chats, memory, projects, and skills in one place.",
     agents: "فضاهای کاری، ابزارها، هویت‌ها.",
     activity: "خلاصه‌های فعالیت ابزار در مرورگر محلی.",
     overview: "وضعیت، نقاط ورود، سلامت.",

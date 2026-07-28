@@ -400,6 +400,7 @@ export const ar: TranslationMap = {
     resize: "تغيير حجم الشريط الجانبي",
   },
   tabs: {
+    workspace: "Daneel Workspace",
     agents: "الوكلاء",
     activity: "النشاط",
     overview: "نظرة عامة",
@@ -425,6 +426,7 @@ export const ar: TranslationMap = {
     dreams: "الحلم",
   },
   subtitles: {
+    workspace: "Chats, memory, projects, and skills in one place.",
     agents: "مساحات العمل، والأدوات، والهويات.",
     activity: "ملخصات نشاط الأدوات المحلية في المتصفح.",
     overview: "الحالة، ونقاط الدخول، والصحة.",

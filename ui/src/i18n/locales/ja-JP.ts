@@ -404,6 +404,7 @@ export const ja_JP: TranslationMap = {
     resize: "サイドバーのサイズを変更",
   },
   tabs: {
+    workspace: "Daneel Workspace",
     agents: "エージェント",
     activity: "アクティビティ",
     overview: "概要",
@@ -429,6 +430,7 @@ export const ja_JP: TranslationMap = {
     dreams: "Dreaming",
   },
   subtitles: {
+    workspace: "Chats, memory, projects, and skills in one place.",
     agents: "ワークスペース、ツール、ID。",
     activity: "ブラウザー内のツールアクティビティ概要。",
     overview: "ステータス、エントリーポイント、健全性。",

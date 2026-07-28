@@ -403,6 +403,7 @@ export const tr: TranslationMap = {
     resize: "Kenar çubuğunu yeniden boyutlandır",
   },
   tabs: {
+    workspace: "Daneel Workspace",
     agents: "Aracılar",
     activity: "Etkinlik",
     overview: "Genel Bakış",
@@ -428,6 +429,7 @@ export const tr: TranslationMap = {
     dreams: "Düşler",
   },
   subtitles: {
+    workspace: "Chats, memory, projects, and skills in one place.",
     agents: "Çalışma alanları, araçlar, kimlikler.",
     activity: "Tarayıcıya yerel araç etkinliği özetleri.",
     overview: "Durum, giriş noktaları, sağlık.",

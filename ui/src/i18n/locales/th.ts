@@ -399,6 +399,7 @@ export const th: TranslationMap = {
     resize: "ปรับขนาดแถบด้านข้าง",
   },
   tabs: {
+    workspace: "Daneel Workspace",
     agents: "เอเจนต์",
     activity: "กิจกรรม",
     overview: "ภาพรวม",
@@ -424,6 +425,7 @@ export const th: TranslationMap = {
     dreams: "การฝัน",
   },
   subtitles: {
+    workspace: "Chats, memory, projects, and skills in one place.",
     agents: "เวิร์กสเปซ เครื่องมือ และข้อมูลประจำตัว",
     activity: "สรุปกิจกรรมของเครื่องมือภายในเบราว์เซอร์",
     overview: "สถานะ จุดเข้าใช้งาน และความพร้อมใช้งาน",

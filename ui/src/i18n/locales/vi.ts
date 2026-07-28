@@ -401,6 +401,7 @@ export const vi: TranslationMap = {
     resize: "Thay đổi kích thước thanh bên",
   },
   tabs: {
+    workspace: "Daneel Workspace",
     agents: "Agent",
     activity: "Hoạt động",
     overview: "Tổng quan",
@@ -426,6 +427,7 @@ export const vi: TranslationMap = {
     dreams: "Đang mơ",
   },
   subtitles: {
+    workspace: "Chats, memory, projects, and skills in one place.",
     agents: "Không gian làm việc, công cụ, danh tính.",
     activity: "Tóm tắt hoạt động công cụ cục bộ trên trình duyệt.",
     overview: "Trạng thái, điểm vào, tình trạng.",

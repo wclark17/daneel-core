@@ -402,6 +402,7 @@ export const pl: TranslationMap = {
     resize: "Zmień rozmiar paska bocznego",
   },
   tabs: {
+    workspace: "Daneel Workspace",
     agents: "Agenci",
     activity: "Aktywność",
     overview: "Przegląd",
@@ -427,6 +428,7 @@ export const pl: TranslationMap = {
     dreams: "Sny",
   },
   subtitles: {
+    workspace: "Chats, memory, projects, and skills in one place.",
     agents: "Obszary robocze, narzędzia, tożsamości.",
     activity: "Podsumowania aktywności narzędzi lokalne dla przeglądarki.",
     overview: "Status, punkty dostępu, stan.",

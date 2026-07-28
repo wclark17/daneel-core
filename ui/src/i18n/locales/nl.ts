@@ -403,6 +403,7 @@ export const nl: TranslationMap = {
     resize: "Zijbalkgrootte aanpassen",
   },
   tabs: {
+    workspace: "Daneel Workspace",
     agents: "Agents",
     activity: "Activiteit",
     overview: "Overzicht",
@@ -428,6 +429,7 @@ export const nl: TranslationMap = {
     dreams: "Dromen",
   },
   subtitles: {
+    workspace: "Chats, memory, projects, and skills in one place.",
     agents: "Werkruimten, tools, identiteiten.",
     activity: "Browserlokale samenvattingen van toolactiviteit.",
     overview: "Status, toegangspunten, gezondheid.",

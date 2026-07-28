@@ -5299,6 +5299,160 @@
       "name": "title",
       "path": "ui/src/ui/views/workboard.ts",
       "text": "Review PR"
+    },
+    {
+      "count": 1,
+      "kind": "html-attribute",
+      "name": "aria-label",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Search Daneel workspace"
+    },
+    {
+      "count": 1,
+      "kind": "html-attribute",
+      "name": "placeholder",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Search chats, memories, projects, and skills"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Active projects"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "All chats"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "All skills"
+    },
+    {
+      "count": 2,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Chats"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Clear"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Curated facts and decisions from MEMORY.md"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "DANEEL"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Dream Diary is available for deeper review."
+    },
+    {
+      "count": 2,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Memory"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Memory tools"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Projects"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Ready skills"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Recent conversations and working sessions"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Refresh"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Reusable procedures available to Daneel"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Skills"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Workboard"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Workboard items grouped as ongoing efforts"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Workspace"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/ui/views/workspace.ts",
+      "text": "Your conversations, durable memory, active projects, and reusable capabilities."
     }
   ]
 }

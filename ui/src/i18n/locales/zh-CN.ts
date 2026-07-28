@@ -398,6 +398,7 @@ export const zh_CN: TranslationMap = {
     resize: "调整侧边栏大小",
   },
   tabs: {
+    workspace: "Daneel Workspace",
     agents: "代理",
     activity: "活动",
     overview: "概览",
@@ -423,6 +424,7 @@ export const zh_CN: TranslationMap = {
     dreams: "梦境",
   },
   subtitles: {
+    workspace: "Chats, memory, projects, and skills in one place.",
     agents: "工作区、工具、身份。",
     activity: "浏览器本地工具活动摘要。",
     overview: "状态、入口点、健康。",

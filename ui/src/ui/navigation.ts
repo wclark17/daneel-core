@@ -7,7 +7,16 @@ export const TAB_GROUPS = [
   { label: "chat", tabs: ["chat"] },
   {
     label: "control",
-    tabs: ["overview", "activity", "workboard", "instances", "sessions", "usage", "cron"],
+    tabs: [
+      "workspace",
+      "overview",
+      "activity",
+      "workboard",
+      "instances",
+      "sessions",
+      "usage",
+      "cron",
+    ],
   },
   { label: "agent", tabs: ["agents", "skills", "skillWorkshop", "nodes", "dreams"] },
   {
@@ -17,6 +26,7 @@ export const TAB_GROUPS = [
 ] as const;
 
 export type Tab =
+  | "workspace"
   | "agents"
   | "activity"
   | "overview"
@@ -55,6 +65,7 @@ export const SETTINGS_TABS = [
 ] as const satisfies readonly Tab[];
 
 const TAB_PATHS: Record<Tab, string> = {
+  workspace: "/workspace",
   agents: "/agents",
   activity: "/activity",
   overview: "/overview",
@@ -199,6 +210,8 @@ export function inferBasePathFromPathname(pathname: string): string {
 
 export function iconForTab(tab: Tab): IconName {
   switch (tab) {
+    case "workspace":
+      return "brain";
     case "agents":
       return "folder";
     case "chat":
