@@ -56,9 +56,7 @@ describe("daneel-core harden-profile", () => {
       const hardened = JSON.parse(readFileSync(configPath, "utf8"));
       expect(hardened.plugins.allow).toEqual([
         "active-memory",
-        "anthropic",
         "codex",
-        "google",
         "llm-task",
         "memory-core",
         "memory-wiki",

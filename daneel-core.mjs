@@ -33,9 +33,7 @@ const safeUpdateScript =
 const hardeningPolicy = {
   pluginsAllow: [
     "active-memory",
-    "anthropic",
     "codex",
-    "google",
     "llm-task",
     "memory-core",
     "memory-wiki",
@@ -102,7 +100,6 @@ Commands:
   mets-ticket-price-refresh
   sonarr-status-refresh
   daily-sonarr-wanted-report
-  compat-state-backup-local
   gomining-price-update
 `);
 }
@@ -1167,7 +1164,6 @@ async function coreDoctor(args = process.argv.slice(3)) {
   const secrets = checkCoreSecrets(config);
   const stateMode = fileModeOctal(stateDir);
   const configMode = fileModeOctal(cfgPath);
-  const compatibilityStateExists = fs.existsSync(path.join(homeDir, ".openclaw"));
   const rawDoctorHint =
     "use `daneel-core doctor --raw` only when debugging inherited runtime internals";
 
@@ -1210,11 +1206,6 @@ async function coreDoctor(args = process.argv.slice(3)) {
   if (secrets.plaintextGatewayToken) {
     warnings.push(
       "gateway.auth.token is still plaintext; move it to 1Password SecretRef during the next secret cleanup pass",
-    );
-  }
-  if (compatibilityStateExists) {
-    warnings.push(
-      "~/.openclaw exists as a compatibility/workspace state tree; Daneel Core active runtime remains ~/.openclaw-daneel-core",
     );
   }
   if (runtimePolicy.skillsAllow.length > 0) {
@@ -1345,6 +1336,10 @@ function legacyCronJobNames() {
   ]);
 }
 
+function approvedDirectJobNames() {
+  return new Set(["fastmail-cron-failure-folder-monitor", "kalshi-mlb-pitcher-change-alerts"]);
+}
+
 function classifyDirectJob(command) {
   const genericWrapper = path.join(workspaceRoot, "scripts", "cron_daneel_core_job_wrapper.py");
   const executable = command[1] || command[0] || "";
@@ -1411,8 +1406,12 @@ function parseDirectCronJobs(crontabText) {
 
 function summarizeJobs(jobs, parseErrors) {
   const oldNames = legacyCronJobNames();
+  const approvedDirectNames = approvedDirectJobNames();
+  const approvedExternalNames = jobs
+    .filter((job) => approvedDirectNames.has(job.name))
+    .map((job) => job.name);
   const nonCoreNames = jobs
-    .filter((job) => !job.name.startsWith("daneel-core-"))
+    .filter((job) => !job.name.startsWith("daneel-core-") && !approvedDirectNames.has(job.name))
     .map((job) => job.name);
   const oldNamesPresent = jobs.filter((job) => oldNames.has(job.name)).map((job) => job.name);
   const legacyWrappedNames = jobs
@@ -1434,7 +1433,8 @@ function summarizeJobs(jobs, parseErrors) {
   return {
     ok,
     jobCount: jobs.length,
-    coreOwnedCount: jobs.length - nonCoreNames.length,
+    coreOwnedCount: jobs.length - approvedExternalNames.length - nonCoreNames.length,
+    approvedExternalNames,
     classifications,
     nonCoreNames,
     oldNamesPresent,
@@ -1537,6 +1537,9 @@ async function jobsStatus() {
     console.log(`Core CLI jobs: ${summary.classifications["core-cli"] || 0}`);
     console.log(`Core wrapper jobs: ${summary.classifications["core-wrapper"] || 0}`);
     console.log(`Core-wrapped legacy jobs: ${summary.classifications["core-wrapped-legacy"] || 0}`);
+    if (summary.approvedExternalNames.length) {
+      console.log(`Approved external jobs: ${summary.approvedExternalNames.join(", ")}`);
+    }
     if (summary.nonCoreNames.length) {
       console.log(`Non-Core names: ${summary.nonCoreNames.join(", ")}`);
     }
@@ -1965,82 +1968,6 @@ async function dailySonarrWantedReport() {
   }
 }
 
-async function compatStateBackupLocal() {
-  const json = hasCommandFlag("--json");
-  const preflightOnly = hasCommandFlag("--preflight-only");
-  const script = requireWorkspaceFile("scripts/backup_openclaw_state_sync.py");
-  requireFile(path.join(homeDir, ".openclaw"), "Daneel Core compatibility state directory");
-  const commandName = "compat-state-backup-local";
-
-  let health;
-  try {
-    health = checkCoreHealthForScheduledJob();
-  } catch (error) {
-    const message = `${commandName} Core preflight failed: ${error.message}`;
-    if (json) {
-      console.log(
-        JSON.stringify(
-          {
-            ok: false,
-            command: commandName,
-            checkedAt: new Date().toISOString(),
-            workspaceRoot,
-            error: message,
-          },
-          null,
-          2,
-        ),
-      );
-    } else {
-      console.error(message);
-    }
-    process.exit(1);
-  }
-
-  if (preflightOnly) {
-    if (json) {
-      console.log(
-        JSON.stringify(
-          {
-            ok: true,
-            command: commandName,
-            checkedAt: new Date().toISOString(),
-            workspaceRoot,
-            coreHealthCheckedAt: health.checkedAt,
-            mode: "preflight-only",
-          },
-          null,
-          2,
-        ),
-      );
-    } else {
-      console.log("NO_REPLY");
-    }
-    return;
-  }
-
-  const result = runOptional("python3", [script, "--skip-sync"], {
-    cwd: workspaceRoot,
-    env: process.env,
-    timeout: 14460 * 1000,
-  });
-  if (result.stdout) {
-    process.stdout.write(result.stdout);
-    if (!result.stdout.endsWith("\n")) {
-      process.stdout.write("\n");
-    }
-  }
-  if (result.stderr) {
-    process.stderr.write(result.stderr);
-    if (!result.stderr.endsWith("\n")) {
-      process.stderr.write("\n");
-    }
-  }
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
-  }
-}
-
 async function gominingPriceUpdate() {
   const json = hasCommandFlag("--json");
   const preflightOnly = hasCommandFlag("--preflight-only");
@@ -2160,10 +2087,6 @@ const coreJobRunners = new Map([
   ["sonarr-status", sonarrStatusRefresh],
   ["daily-sonarr-wanted-report", dailySonarrWantedReport],
   ["sonarr-wanted-report", dailySonarrWantedReport],
-  ["compat-state-backup-local", compatStateBackupLocal],
-  ["core-compat-state-backup-local", compatStateBackupLocal],
-  ["openclaw-state-backup-local", compatStateBackupLocal],
-  ["state-backup-local", compatStateBackupLocal],
   ["gomining-price-update", gominingPriceUpdate],
   ["gomining-prices", gominingPriceUpdate],
 ]);
