@@ -30,10 +30,12 @@ function findOp() {
 
 function readOptionalTokenFile() {
   const explicitPath = process.env.OP_SERVICE_ACCOUNT_TOKEN_FILE;
+  const stateDir =
+    process.env.OPENCLAW_STATE_DIR || path.join(os.homedir(), ".openclaw-daneel-core");
   const tokenPath =
     explicitPath && explicitPath.trim()
       ? explicitPath
-      : path.join(os.homedir(), ".openclaw", "secrets", "op_service_account_token");
+      : path.join(stateDir, "secrets", "op_service_account_token");
   try {
     return fs.readFileSync(tokenPath, "utf8").trim();
   } catch {

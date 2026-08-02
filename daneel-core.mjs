@@ -22,12 +22,7 @@ const serviceLog = path.join(logDir, "gateway-service.log");
 const detachedLog = path.join(logDir, "gateway-detached.log");
 const unitPath = path.join(homeDir, ".config", "systemd", "user", serviceUnit);
 const commandLink = path.join(homeDir, ".local", "bin", "daneel-core");
-const opServiceAccountTokenFile = path.join(
-  homeDir,
-  ".openclaw",
-  "secrets",
-  "op_service_account_token",
-);
+const opServiceAccountTokenFile = path.join(stateDir, "secrets", "op_service_account_token");
 const workspaceRoot =
   process.env.OPENCLAW_DANEEL_CORE_WORKSPACE ||
   process.env.OPENCLAW_WORKSPACE ||
