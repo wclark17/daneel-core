@@ -47,6 +47,13 @@ def service_active():
     return result.returncode == 0 and result.stdout.strip() == "active"
 
 
+def running_inside_core_service():
+    try:
+        return SERVICE in Path("/proc/self/cgroup").read_text()
+    except OSError:
+        return False
+
+
 def sqlite_stats(path):
     if not path.exists():
         return {"exists": False, "path": str(path)}
@@ -270,6 +277,10 @@ def sanitized_plan(now):
 
 
 def apply_retention(now):
+    if running_inside_core_service():
+        raise RuntimeError(
+            "refusing to stop Core from inside its own service cgroup; run this command from cron or a separate systemd unit"
+        )
     stamp = dt.datetime.fromtimestamp(now, dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_dir = ROLLBACK_ROOT / stamp
     run_dir.mkdir(parents=True, mode=0o700)
