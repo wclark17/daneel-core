@@ -84,6 +84,15 @@ describe("daneel-core harden-profile", () => {
         args: [path.join(repoRoot, "scripts", "secrets", "daneel-core-onepassword-resolver.mjs")],
         jsonOnly: true,
       });
+      expect(hardened.session.maintenance).toEqual({
+        mode: "enforce",
+        pruneAfter: "30d",
+        maxEntries: 100,
+        resetArchiveRetention: "30d",
+        maxDiskBytes: "1gb",
+        highWaterBytes: "800mb",
+      });
+      expect(hardened.cron.sessionRetention).toBe("24h");
     } finally {
       rmSync(stateDir, { recursive: true, force: true });
     }

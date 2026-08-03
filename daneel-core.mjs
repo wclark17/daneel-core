@@ -58,6 +58,15 @@ const onePasswordResolverScript = path.join(
   "secrets",
   "daneel-core-onepassword-resolver.mjs",
 );
+const stateRetentionScript = path.join(repoRoot, "scripts", "daneel-core-state-retention.py");
+const stateRetentionPolicy = {
+  mode: "enforce",
+  pruneAfter: "30d",
+  maxEntries: 100,
+  resetArchiveRetention: "30d",
+  maxDiskBytes: "1gb",
+  highWaterBytes: "800mb",
+};
 
 function usage() {
   console.log(`Usage: daneel-core <command>
@@ -83,6 +92,7 @@ Commands:
   terminal [args...]   Alias for local embedded terminal chat UI
   harden-profile       Apply Daneel Core runtime allowlists to the active profile
   jobs                 Show Core-owned recurring direct cron jobs
+  state-retention      Preview or apply Core state retention and SQLite compaction
   run <jobname>        Run a Core-owned scheduled job
   backup [options]     Snapshot current Core config and built runtime assets
   update [options]     Rebuild/restart the frozen Core checkout; does not merge upstream
@@ -365,6 +375,17 @@ function applyDaneelCoreHardening(config) {
     ownerAllowFrom.push("telegram:6210106819");
     commands.ownerAllowFrom = sortUnique(ownerAllowFrom);
     changes.push("commands.ownerAllowFrom includes telegram:6210106819");
+  }
+
+  const session = ensureObject(config, "session");
+  if (JSON.stringify(session.maintenance) !== JSON.stringify(stateRetentionPolicy)) {
+    session.maintenance = cloneJson(stateRetentionPolicy);
+    changes.push("session.maintenance=30d/1gb");
+  }
+  const cron = ensureObject(config, "cron");
+  if (cron.sessionRetention !== "24h") {
+    cron.sessionRetention = "24h";
+    changes.push("cron.sessionRetention=24h");
   }
 
   return changes;
@@ -785,6 +806,15 @@ async function delegateOpenClawCommand(command, args = process.argv.slice(3)) {
     env: coreEnv(),
     cwd: repoRoot,
   });
+}
+
+async function stateRetention(args = process.argv.slice(3)) {
+  await hardenProfile({ quiet: true });
+  if (!fs.existsSync(stateRetentionScript)) {
+    console.error(`State retention script not found: ${stateRetentionScript}`);
+    process.exit(1);
+  }
+  run("python3", [stateRetentionScript, ...args], { env: coreEnv(), cwd: repoRoot });
 }
 
 function normalizeSecretInputEnvId(value) {
@@ -2177,6 +2207,9 @@ async function main() {
     case "jobs":
     case "cron-status":
       await jobsStatus();
+      return;
+    case "state-retention":
+      await stateRetention();
       return;
     case "run":
       await runCoreJob();
