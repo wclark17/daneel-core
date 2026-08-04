@@ -1,3 +1,4 @@
+import { embeddedAgentLog } from "openclaw/plugin-sdk/agent-harness-runtime";
 /**
  * Owns shared and isolated Codex app-server client startup, auth application,
  * lease tracking, and teardown.
@@ -17,6 +18,43 @@ import {
 } from "./config.js";
 import { resolveManagedCodexAppServerStartOptions } from "./managed-binary.js";
 import { withTimeout } from "./timeout.js";
+
+const CODEX_STATE_BACKFILL_RETRY_WINDOW_MS = 30 * 60_000;
+const CODEX_STATE_BACKFILL_RETRY_DELAY_MS = 5_000;
+
+/** Detects the native Codex one-time SQLite backfill startup condition. */
+export function isCodexStateBackfillRunningError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return (
+    message.includes("state db backfill is running") &&
+    message.includes("timed out waiting for state db backfill")
+  );
+}
+
+async function waitForCodexStateBackfillRetry(signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) {
+    throw new Error("codex app-server startup abandoned while state db backfill was running");
+  }
+  await new Promise<void>((resolve, reject) => {
+    let onAbort: (() => void) | undefined;
+    const finish = () => {
+      if (onAbort) {
+        signal?.removeEventListener("abort", onAbort);
+      }
+      resolve();
+    };
+    const timer = setTimeout(finish, CODEX_STATE_BACKFILL_RETRY_DELAY_MS);
+    timer.unref?.();
+    if (!signal) {
+      return;
+    }
+    onAbort = () => {
+      clearTimeout(timer);
+      reject(new Error("codex app-server startup abandoned while state db backfill was running"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
 
 type SharedCodexAppServerClientEntry = {
   client?: CodexAppServerClient;
@@ -224,26 +262,40 @@ async function acquireSharedCodexAppServerClient(
   const sharedPromise =
     entry.promise ??
     (entry.promise = (async () => {
-      const client = CodexAppServerClient.start(startOptions);
-      entry.client = client;
-      options?.onStartedClient?.(client);
-      client.setActiveSharedLeaseCountProviderForUnscopedNotifications(() => entry.activeLeases);
-      client.addCloseHandler((closedClient) => clearSharedClientEntryIfCurrent(key, closedClient));
-      try {
-        await client.initialize();
-        await applyCodexAppServerAuthProfile({
-          client,
-          agentDir,
-          authProfileId: usesNativeAuth ? null : authProfileId,
-          startOptions,
-          config: options?.config,
-        });
-        return client;
-      } catch (error) {
-        // Startup failures happen before callers own the shared client, so close
-        // the child here instead of leaving a rejected daemon attached to stdio.
-        client.close();
-        throw error;
+      const backfillDeadline = Date.now() + CODEX_STATE_BACKFILL_RETRY_WINDOW_MS;
+      for (;;) {
+        const client = CodexAppServerClient.start(startOptions);
+        entry.client = client;
+        options?.onStartedClient?.(client);
+        client.setActiveSharedLeaseCountProviderForUnscopedNotifications(() => entry.activeLeases);
+        client.addCloseHandler((closedClient) =>
+          clearSharedClientEntryIfCurrent(key, closedClient),
+        );
+        try {
+          await client.initialize();
+          await applyCodexAppServerAuthProfile({
+            client,
+            agentDir,
+            authProfileId: usesNativeAuth ? null : authProfileId,
+            startOptions,
+            config: options?.config,
+          });
+          return client;
+        } catch (error) {
+          // Detach the failed child before closing it so its close handler does
+          // not discard the shared entry while this startup promise retries.
+          if (entry.client === client) {
+            entry.client = undefined;
+          }
+          client.close();
+          if (!isCodexStateBackfillRunningError(error) || Date.now() >= backfillDeadline) {
+            throw error;
+          }
+          embeddedAgentLog.warn(
+            "codex app-server SQLite state backfill is still running; keeping startup pending and retrying",
+          );
+          await waitForCodexStateBackfillRetry(options?.abandonSignal);
+        }
       }
     })());
   try {

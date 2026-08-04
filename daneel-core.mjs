@@ -1034,6 +1034,7 @@ async function healthcheck() {
     );
   }
 
+  let modelRouteOk = false;
   try {
     const cfg = readJsonFile(path.join(stateDir, "openclaw.json"));
     const defaultModel =
@@ -1071,9 +1072,51 @@ async function healthcheck() {
         ? " legacy openai-codex model pinned through codex harness"
         : " legacy openai-codex default must be migrated to openai/* or pinned through codex";
     }
+    modelRouteOk = routeOk;
     add("model-route", routeOk, routeDetail);
   } catch (error) {
     add("model-route", false, `unable to verify model route: ${error.message}`);
+  }
+
+  if (serviceOk && portOk && models.ok && modelRouteOk) {
+    const modelTurn = parseJsonRun(
+      process.execPath,
+      [
+        "openclaw.mjs",
+        "agent",
+        "--local",
+        "--session-key",
+        "agent:main:daneel-core-healthcheck-model-turn",
+        "--timeout",
+        "60",
+        "--thinking",
+        "off",
+        "--json",
+        "--message",
+        "No delivery. Do not use tools. Reply with exactly CORE_MODEL_OK and nothing else.",
+      ],
+      {
+        env: coreEnv(),
+        cwd: repoRoot,
+        timeout: 90_000,
+      },
+    );
+    const modelText =
+      modelTurn.value?.finalAssistantVisibleText ||
+      modelTurn.value?.finalAssistantRawText ||
+      modelTurn.value?.payloads?.[0]?.text ||
+      "";
+    const turnOk = modelTurn.ok && String(modelText).trim() === "CORE_MODEL_OK";
+    add(
+      "model-turn",
+      turnOk,
+      turnOk
+        ? `completed configured route provider=${modelTurn.value?.meta?.agentMeta?.provider || "unknown"} model=${modelTurn.value?.meta?.agentMeta?.model || "unknown"}`
+        : modelTurn.error ||
+            `unexpected model response: ${String(modelText).trim().slice(0, 120) || "empty"}`,
+    );
+  } else {
+    add("model-turn", false, "skipped because service, port, auth, or route is not ready");
   }
 
   const logCheck = recentLogIssues();

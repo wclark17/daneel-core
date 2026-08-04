@@ -47,6 +47,7 @@ let createIsolatedCodexAppServerClient: typeof import("./shared-client.js").crea
 let detachSharedCodexAppServerClientIfCurrent: typeof import("./shared-client.js").detachSharedCodexAppServerClientIfCurrent;
 let getLeasedSharedCodexAppServerClient: typeof import("./shared-client.js").getLeasedSharedCodexAppServerClient;
 let getSharedCodexAppServerClient: typeof import("./shared-client.js").getSharedCodexAppServerClient;
+let isCodexStateBackfillRunningError: typeof import("./shared-client.js").isCodexStateBackfillRunningError;
 let retainSharedCodexAppServerClientIfCurrent: typeof import("./shared-client.js").retainSharedCodexAppServerClientIfCurrent;
 let releaseLeasedSharedCodexAppServerClient: typeof import("./shared-client.js").releaseLeasedSharedCodexAppServerClient;
 let retireSharedCodexAppServerClientIfCurrent: typeof import("./shared-client.js").retireSharedCodexAppServerClientIfCurrent;
@@ -125,6 +126,7 @@ describe("shared Codex app-server client", () => {
       detachSharedCodexAppServerClientIfCurrent,
       getLeasedSharedCodexAppServerClient,
       getSharedCodexAppServerClient,
+      isCodexStateBackfillRunningError,
       retainSharedCodexAppServerClientIfCurrent,
       releaseLeasedSharedCodexAppServerClient,
       retireSharedCodexAppServerClientIfCurrent,
@@ -167,6 +169,18 @@ describe("shared Codex app-server client", () => {
     );
     expect(harness.process.stdin.destroyed).toBe(true);
     startSpy.mockRestore();
+  });
+
+  it("recognizes only the native running SQLite backfill timeout", () => {
+    expect(
+      isCodexStateBackfillRunningError(
+        new Error(
+          "state db backfill is running at /tmp/codex; timed out waiting for state db backfill after 30s",
+        ),
+      ),
+    ).toBe(true);
+    expect(isCodexStateBackfillRunningError(new Error("state db backfill failed"))).toBe(false);
+    expect(isCodexStateBackfillRunningError(new Error("codex app-server exited"))).toBe(false);
   });
 
   it("closes and clears a shared app-server when initialize times out", async () => {
