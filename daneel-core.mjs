@@ -23,6 +23,7 @@ const detachedLog = path.join(logDir, "gateway-detached.log");
 const unitPath = path.join(homeDir, ".config", "systemd", "user", serviceUnit);
 const commandLink = path.join(homeDir, ".local", "bin", "daneel-core");
 const opServiceAccountTokenFile = path.join(stateDir, "secrets", "op_service_account_token");
+const fastmailMcpEnvFile = path.join(stateDir, "secrets", "fastmail-mcp.env");
 const workspaceRoot =
   process.env.OPENCLAW_DANEEL_CORE_WORKSPACE ||
   process.env.OPENCLAW_WORKSPACE ||
@@ -67,6 +68,43 @@ const stateRetentionPolicy = {
   maxDiskBytes: "1gb",
   highWaterBytes: "800mb",
 };
+
+function loadProtectedEnvironmentFile(filePath, allowedKeys) {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+  const text = fs.readFileSync(filePath, "utf8");
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+    const separator = line.indexOf("=");
+    if (separator <= 0) {
+      continue;
+    }
+    const key = line.slice(0, separator).trim();
+    if (!allowedKeys.has(key) || process.env[key]) {
+      continue;
+    }
+    let value = line.slice(separator + 1).trim();
+    if (
+      value.length >= 2 &&
+      ((value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'")))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (value) {
+      process.env[key] = value;
+    }
+  }
+}
+
+// systemd loads this file for the gateway. Interactive commands such as TUI,
+// devices, and doctor need the same protected environment when they parse the
+// Core config before connecting to that gateway.
+loadProtectedEnvironmentFile(fastmailMcpEnvFile, new Set(["FASTMAIL_MCP_TOKEN"]));
 
 function usage() {
   console.log(`Usage: daneel-core <command>
