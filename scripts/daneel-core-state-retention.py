@@ -28,6 +28,8 @@ THREAD_RETENTION_DAYS = 30
 BACKUP_RETENTION_DAYS = 14
 COMPACT_MIN_FREE_BYTES = 256 * 1024 * 1024
 COMPACT_MIN_FREE_RATIO = 0.20
+HEALTHCHECK_ATTEMPTS = 12
+HEALTHCHECK_RETRY_SECONDS = 5
 
 
 def run(args, *, check=True, capture=True, timeout=None):
@@ -120,6 +122,25 @@ def native_session_cleanup(apply):
 
 def process_exec():
     return shutil.which("node") or "/usr/bin/node"
+
+
+def wait_for_core_health():
+    last_result = None
+    for attempt in range(1, HEALTHCHECK_ATTEMPTS + 1):
+        health = run([CORE_CLI, "healthcheck", "--json"], check=False, timeout=300)
+        last_result = health
+        try:
+            payload = json.loads(health.stdout)
+        except json.JSONDecodeError:
+            payload = None
+        if health.returncode == 0 and payload and payload.get("ok"):
+            return payload
+        if attempt < HEALTHCHECK_ATTEMPTS:
+            time.sleep(HEALTHCHECK_RETRY_SECONDS)
+    detail = (last_result.stderr or last_result.stdout or "no healthcheck output").strip()
+    raise RuntimeError(
+        f"Daneel Core healthcheck did not pass after {HEALTHCHECK_ATTEMPTS} attempts: {detail}"
+    )
 
 
 def checkpoint(path):
@@ -302,10 +323,7 @@ def apply_retention(now):
         result["codexThreads"] = thread_result
         if was_active:
             run(["systemctl", "--user", "start", SERVICE], timeout=120)
-            health = run([CORE_CLI, "healthcheck", "--json"], timeout=300)
-            result["healthcheck"] = json.loads(health.stdout)
-            if not result["healthcheck"].get("ok"):
-                raise RuntimeError("Daneel Core healthcheck failed after retention")
+            result["healthcheck"] = wait_for_core_health()
         original_log = Path(log_result.get("original", "")) if log_result else None
         if original_log and str(original_log) != "." and original_log.exists():
             original_log.unlink()
