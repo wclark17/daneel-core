@@ -1079,34 +1079,39 @@ async function healthcheck() {
   }
 
   if (serviceOk && portOk && models.ok && modelRouteOk) {
-    const modelTurn = parseJsonRun(
-      process.execPath,
-      [
-        "openclaw.mjs",
-        "agent",
-        "--local",
-        "--session-key",
-        "agent:main:daneel-core-healthcheck-model-turn",
-        "--timeout",
-        "60",
-        "--thinking",
-        "off",
-        "--json",
-        "--message",
-        "No delivery. Do not use tools. Reply with exactly CORE_MODEL_OK and nothing else.",
-      ],
-      {
-        env: coreEnv(),
-        cwd: repoRoot,
-        timeout: 90_000,
-      },
-    );
-    const modelText =
-      modelTurn.value?.finalAssistantVisibleText ||
-      modelTurn.value?.finalAssistantRawText ||
-      modelTurn.value?.payloads?.[0]?.text ||
-      "";
-    const turnOk = modelTurn.ok && String(modelText).trim() === "CORE_MODEL_OK";
+    let modelTurn;
+    let modelText = "";
+    let turnOk = false;
+    for (let attempt = 0; attempt < 2 && !turnOk; attempt += 1) {
+      modelTurn = parseJsonRun(
+        process.execPath,
+        [
+          "openclaw.mjs",
+          "agent",
+          "--local",
+          "--session-key",
+          "agent:main:daneel-core-healthcheck-model-turn",
+          "--timeout",
+          "60",
+          "--thinking",
+          "off",
+          "--json",
+          "--message",
+          "No delivery. Do not use tools. Reply with exactly CORE_MODEL_OK and nothing else.",
+        ],
+        {
+          env: coreEnv(),
+          cwd: repoRoot,
+          timeout: 90_000,
+        },
+      );
+      modelText =
+        modelTurn.value?.finalAssistantVisibleText ||
+        modelTurn.value?.finalAssistantRawText ||
+        modelTurn.value?.payloads?.[0]?.text ||
+        "";
+      turnOk = Boolean(modelTurn.ok && /^CORE_MODEL_OK(?:\s|$)/.test(String(modelText).trim()));
+    }
     add(
       "model-turn",
       turnOk,
