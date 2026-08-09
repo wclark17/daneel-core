@@ -1083,6 +1083,24 @@ async function healthcheck() {
     let modelText = "";
     let turnOk = false;
     for (let attempt = 0; attempt < 2 && !turnOk; attempt += 1) {
+      const modelTurnSessionKey = `agent:main:daneel-core-healthcheck-model-turn-${attempt}`;
+      // Clear the prior one-shot probe before reuse. This also recovers a probe
+      // left behind when a parent runner was killed before post-run cleanup.
+      runOptional(
+        process.execPath,
+        [
+          "openclaw.mjs",
+          "gateway",
+          "call",
+          "sessions.delete",
+          "--params",
+          JSON.stringify({ key: modelTurnSessionKey }),
+          "--json",
+          "--timeout",
+          "10000",
+        ],
+        { env: coreEnv(), cwd: repoRoot, timeout: 15_000 },
+      );
       modelTurn = parseJsonRun(
         process.execPath,
         [
@@ -1090,7 +1108,7 @@ async function healthcheck() {
           "agent",
           "--local",
           "--session-key",
-          "agent:main:daneel-core-healthcheck-model-turn",
+          modelTurnSessionKey,
           "--timeout",
           "60",
           "--thinking",
@@ -1104,6 +1122,26 @@ async function healthcheck() {
           cwd: repoRoot,
           timeout: 90_000,
         },
+      );
+      // Health probes must never accumulate conversational context. A reused
+      // probe session eventually becomes large enough to compact, echo its own
+      // repeated prompt, and time out. Delete each one-shot session after the
+      // child exits; a future cleanup pass can collect files if the gateway is
+      // temporarily unavailable.
+      runOptional(
+        process.execPath,
+        [
+          "openclaw.mjs",
+          "gateway",
+          "call",
+          "sessions.delete",
+          "--params",
+          JSON.stringify({ key: modelTurnSessionKey }),
+          "--json",
+          "--timeout",
+          "10000",
+        ],
+        { env: coreEnv(), cwd: repoRoot, timeout: 15_000 },
       );
       modelText =
         modelTurn.value?.finalAssistantVisibleText ||
