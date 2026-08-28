@@ -64,3 +64,6 @@ and third-party attribution is recorded in [UPSTREAM.md](UPSTREAM.md) and
 Daneel Core is not intended to publish over the upstream OpenClaw package or
 release channels. Keep future changes focused on this runtime unless Bill
 explicitly asks for a one-off upstream import or a broader public release plan.
+
+Public-release preparation is tracked in the
+[Daneel Core Public-Readiness Roadmap](docs/roadmap/public-readiness.md).
