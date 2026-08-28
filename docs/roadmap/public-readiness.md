@@ -1,8 +1,11 @@
 # Daneel Core Public-Readiness Roadmap
 
-Status: active planning document  
-Owner: Daneel Core maintainers  
-Target branch: `hardened-memory-core`  
+Status: active planning document
+
+Owner: Daneel Core maintainers
+
+Target branch: `hardened-memory-core`
+
 Last updated: 2026-08-28
 
 ## Goal
