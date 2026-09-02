@@ -1148,11 +1148,22 @@ async function healthcheck() {
         modelTurn.value?.finalAssistantRawText ||
         modelTurn.value?.payloads?.[0]?.text ||
         "";
+      const completedAttempt = modelTurn.value?.executionTrace?.attempts?.some(
+        (attemptInfo) => attemptInfo?.result === "success" && attemptInfo?.stage === "assistant",
+      );
+      const completedTurn = Boolean(
+        modelTurn.ok &&
+        modelTurn.value?.meta?.aborted !== true &&
+        completedAttempt &&
+        (modelTurn.value?.completion?.stopReason || modelTurn.value?.completion?.finishReason),
+      );
       // This is a liveness probe, not an instruction-following benchmark. A
-      // successful non-empty completion proves that the configured route can
-      // execute a turn. Requiring one exact sentinel creates false outages when
-      // the model returns an equivalent acknowledgement (for example CORE_OK).
-      turnOk = Boolean(modelTurn.ok && String(modelText).trim());
+      // successful assistant completion proves that the configured route can
+      // execute a turn. Control tokens such as NO_REPLY can be intentionally
+      // suppressed from the visible payload, so usable text is evidence of
+      // success but is not required when the execution trace records a clean
+      // assistant stop.
+      turnOk = Boolean(modelTurn.ok && (String(modelText).trim() || completedTurn));
     }
     add(
       "model-turn",
