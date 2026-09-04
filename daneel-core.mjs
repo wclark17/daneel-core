@@ -34,6 +34,7 @@ const safeUpdateScript =
 const hardeningPolicy = {
   pluginsAllow: [
     "active-memory",
+    "anthropic",
     "codex",
     "llm-task",
     "memory-core",
