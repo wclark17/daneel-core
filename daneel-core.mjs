@@ -1021,6 +1021,11 @@ async function healthcheck() {
     const missing = Array.isArray(auth.missingProvidersInUse) ? auth.missingProvidersInUse : [];
     const oauthProfiles = Array.isArray(auth.oauth?.profiles) ? auth.oauth.profiles : [];
     const usableRoutes = routes.filter((route) => route.status === "usable").length;
+    const routedProviders = new Set(
+      routes.flatMap((route) => [route.provider, route.authProvider]).filter(Boolean),
+    );
+    const blockingUnusable = unusable.filter((profile) => routedProviders.has(profile.provider));
+    const optionalUnusable = unusable.length - blockingUnusable.length;
     const soonestRemainingMs = oauthProfiles
       .map((profileInfo) => profileInfo.remainingMs)
       .filter((value) => Number.isFinite(value))
@@ -1030,8 +1035,8 @@ async function healthcheck() {
       : "";
     add(
       "model-auth",
-      usableRoutes > 0 && unusable.length === 0 && missing.length === 0,
-      `default=${models.value?.resolvedDefault || models.value?.defaultModel || "unknown"} usableRoutes=${usableRoutes} missing=${missing.length} unusable=${unusable.length}${remainingDetail}`,
+      usableRoutes > 0 && blockingUnusable.length === 0 && missing.length === 0,
+      `default=${models.value?.resolvedDefault || models.value?.defaultModel || "unknown"} usableRoutes=${usableRoutes} missing=${missing.length} unusable=${blockingUnusable.length} optionalUnusable=${optionalUnusable}${remainingDetail}`,
     );
   }
 
