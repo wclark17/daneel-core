@@ -133,6 +133,9 @@ function isClaudeOpus46Model(modelId: string): boolean {
 
 function supportsAdaptiveThinking(modelId: string): boolean {
   return (
+    modelId.includes("fable-5") ||
+    modelId.includes("opus-5") ||
+    modelId.includes("sonnet-5") ||
     isClaudeOpus47OrNewerModel(modelId) ||
     isClaudeOpus46Model(modelId) ||
     modelId.includes("sonnet-4-6") ||

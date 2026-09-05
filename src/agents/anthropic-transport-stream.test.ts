@@ -1965,6 +1965,23 @@ describe("anthropic transport stream", () => {
     expect(payload.output_config).toEqual({ effort: "max" });
   });
 
+  it.each(["claude-fable-5-1", "claude-opus-5", "claude-sonnet-5"])(
+    "maps adaptive thinking for %s embedded transport runs",
+    async (modelId) => {
+      const model = makeAnthropicTransportModel({ id: modelId, maxTokens: 8192 });
+
+      await runTransportStream(
+        model,
+        { messages: [{ role: "user", content: "Think." }] } as AnthropicStreamContext,
+        { apiKey: "sk-ant-api", reasoning: "adaptive" } as AnthropicStreamOptions,
+      );
+
+      const payload = latestAnthropicRequest().payload;
+      expect(payload.thinking).toEqual({ type: "adaptive" });
+      expect(payload.output_config).toEqual({ effort: "high" });
+    },
+  );
+
   it("maps xhigh thinking effort for Claude Opus 4.8 transport runs", async () => {
     const model = makeAnthropicTransportModel({
       id: "claude-opus-4-8",
