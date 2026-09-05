@@ -316,4 +316,13 @@ describe("resolveClaudeThinkingProfile", () => {
     );
     expect(fixedBudgetLevels).toStrictEqual([]);
   });
+
+  it.each(["claude-fable-5-1", "claude-opus-5", "claude-sonnet-5"])(
+    "defaults %s to adaptive thinking",
+    (modelId) => {
+      const profile = resolveClaudeThinkingProfile(modelId);
+      expect(profile.defaultLevel).toBe("adaptive");
+      expectLevelIdsInclude(profile, ["adaptive"]);
+    },
+  );
 });

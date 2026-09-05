@@ -103,6 +103,9 @@ import { normalizeOptionalLowercaseString } from "../../packages/normalization-c
 const CLAUDE_OPUS_48_MODEL_PREFIXES = ["claude-opus-4-8", "claude-opus-4.8"] as const;
 const CLAUDE_OPUS_47_MODEL_PREFIXES = ["claude-opus-4-7", "claude-opus-4.7"] as const;
 const CLAUDE_ADAPTIVE_THINKING_DEFAULT_MODEL_PREFIXES = [
+  "claude-fable-5",
+  "claude-opus-5",
+  "claude-sonnet-5",
   "claude-opus-4-6",
   "claude-opus-4.6",
   "claude-sonnet-4-6",

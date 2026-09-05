@@ -730,11 +730,14 @@ export const streamAnthropic: StreamFunction<"anthropic-messages", AnthropicOpti
 };
 
 /**
- * Check if a model supports adaptive thinking (Opus 4.6+, Sonnet 4.6)
+ * Check if a model supports adaptive thinking.
  */
 function supportsAdaptiveThinking(modelId: string): boolean {
   // Adaptive-thinking model IDs (with or without date suffix)
   return (
+    modelId.includes("fable-5") ||
+    modelId.includes("opus-5") ||
+    modelId.includes("sonnet-5") ||
     modelId.includes("opus-4-6") ||
     modelId.includes("opus-4.6") ||
     modelId.includes("opus-4-8") ||
@@ -793,7 +796,7 @@ export const streamSimpleAnthropic: StreamFunction<"anthropic-messages", SimpleS
     } satisfies AnthropicOptions);
   }
 
-  // For Opus 4.6 and Sonnet 4.6: use adaptive thinking with effort level
+  // For current Claude families: use adaptive thinking with effort level.
   // For older models: use budget-based thinking
   if (supportsAdaptiveThinking(model.id)) {
     const effort = mapThinkingLevelToEffort(model, options.reasoning);
