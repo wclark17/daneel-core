@@ -205,6 +205,10 @@ export function archiveSessionTranscriptsDetailed(opts: {
         sourcePath: candidatePath,
         archivedPath: archiveFileOnDisk(candidatePath, opts.reason),
       });
+      // The Codex harness stores resumable app-server binding state beside the
+      // transcript. It has no value once that transcript is retired and, unlike
+      // the transcript archive, must not accumulate indefinitely.
+      fs.rmSync(`${candidatePath}.codex-app-server.json`, { force: true });
     } catch (err) {
       opts.onArchiveError?.(err, candidatePath);
     }

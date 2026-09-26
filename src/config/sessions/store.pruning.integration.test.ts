@@ -271,6 +271,8 @@ describe("Integration: saveSessionStore with pruning", () => {
     };
     const referencedTranscript = path.join(testDir, "fresh-session.jsonl");
     const oldOrphanTranscript = path.join(testDir, "orphan-session.jsonl");
+    const oldOrphanBinding = `${oldOrphanTranscript}.codex-app-server.json`;
+    const referencedBinding = `${referencedTranscript}.codex-app-server.json`;
     const freshOrphanTranscript = path.join(testDir, "fresh-orphan.jsonl");
     const orphanRuntime = path.join(testDir, "orphan-session.trajectory.jsonl");
     const orphanPointer = path.join(testDir, "orphan-session.trajectory-path.json");
@@ -283,6 +285,8 @@ describe("Integration: saveSessionStore with pruning", () => {
     await fs.writeFile(referencedCheckpointPath, "referenced checkpoint", "utf-8");
     await fs.writeFile(referencedPostCompactionPath, "referenced post-compaction", "utf-8");
     await fs.writeFile(oldOrphanTranscript, "orphan transcript", "utf-8");
+    await fs.writeFile(oldOrphanBinding, "orphan binding", "utf-8");
+    await fs.writeFile(referencedBinding, "referenced binding", "utf-8");
     await fs.writeFile(freshOrphanTranscript, "fresh orphan", "utf-8");
     await fs.writeFile(orphanRuntime, "orphan runtime", "utf-8");
     await fs.writeFile(orphanPointer, "orphan pointer", "utf-8");
@@ -292,6 +296,8 @@ describe("Integration: saveSessionStore with pruning", () => {
       referencedCheckpointPath,
       referencedPostCompactionPath,
       oldOrphanTranscript,
+      oldOrphanBinding,
+      referencedBinding,
       orphanRuntime,
       orphanPointer,
       orphanCheckpoint,
@@ -305,8 +311,9 @@ describe("Integration: saveSessionStore with pruning", () => {
       opts: { store: storePath, dryRun: true, enforce: true },
       targets: [{ agentId: "main", storePath }],
     });
-    expect(dryRun.previewResults[0]?.summary.unreferencedArtifacts.removedFiles).toBe(4);
+    expect(dryRun.previewResults[0]?.summary.unreferencedArtifacts.removedFiles).toBe(5);
     await expectPathExists(oldOrphanTranscript);
+    await expectPathExists(oldOrphanBinding);
     await expectPathExists(orphanRuntime);
     await expectPathExists(orphanPointer);
     await expectPathExists(orphanCheckpoint);
@@ -317,12 +324,14 @@ describe("Integration: saveSessionStore with pruning", () => {
       targets: [{ agentId: "main", storePath }],
     });
 
-    expect(applied.appliedSummaries[0]?.unreferencedArtifacts.removedFiles).toBe(4);
+    expect(applied.appliedSummaries[0]?.unreferencedArtifacts.removedFiles).toBe(5);
     await expectPathMissing(oldOrphanTranscript);
+    await expectPathMissing(oldOrphanBinding);
     await expectPathMissing(orphanRuntime);
     await expectPathMissing(orphanPointer);
     await expectPathMissing(orphanCheckpoint);
     await expectPathExists(referencedTranscript);
+    await expectPathExists(referencedBinding);
     await expectPathExists(referencedCheckpointPath);
     await expectPathExists(referencedPostCompactionPath);
     await expectPathExists(freshOrphanTranscript);

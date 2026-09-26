@@ -938,6 +938,64 @@ function recentLogIssues() {
   };
 }
 
+function parseStorageBytes(value) {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+  const match = /^\s*(\d+(?:\.\d+)?)\s*(b|kb|mb|gb|tb)\s*$/iu.exec(String(value || ""));
+  if (!match) return null;
+  const units = { b: 1, kb: 1024, mb: 1024 ** 2, gb: 1024 ** 3, tb: 1024 ** 4 };
+  return Math.round(Number(match[1]) * units[match[2].toLowerCase()]);
+}
+
+function formatStorageBytes(bytes) {
+  const mib = bytes / 1024 ** 2;
+  return `${Math.round(mib * 10) / 10}MiB`;
+}
+
+function sessionStorageHealth() {
+  const sessionsDir = path.join(stateDir, "agents", "main", "sessions");
+  let maintenance = stateRetentionPolicy;
+  try {
+    maintenance =
+      readJsonFile(path.join(stateDir, "openclaw.json")).session?.maintenance || maintenance;
+  } catch {
+    // The config check elsewhere reports malformed/missing configuration. Keep
+    // this storage check useful with the hardened profile defaults.
+  }
+  const maxBytes = parseStorageBytes(maintenance.maxDiskBytes);
+  const highWaterBytes = parseStorageBytes(maintenance.highWaterBytes);
+  let usedBytes = 0;
+  let reclaimableBytes = 0;
+  let reclaimableFiles = 0;
+  const pending = [sessionsDir];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const entryPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(entryPath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const size = fs.statSync(entryPath).size;
+      usedBytes += size;
+      if (entry.name.endsWith(".jsonl.codex-app-server.json")) {
+        const transcriptPath = entryPath.slice(0, -".codex-app-server.json".length);
+        if (!fs.existsSync(transcriptPath)) {
+          reclaimableBytes += size;
+          reclaimableFiles += 1;
+        }
+      }
+    }
+  }
+  const ok = maxBytes != null && usedBytes <= maxBytes;
+  return {
+    ok,
+    detail: `used=${formatStorageBytes(usedBytes)} cap=${maxBytes == null ? "unconfigured" : formatStorageBytes(maxBytes)} highWater=${highWaterBytes == null ? "unconfigured" : formatStorageBytes(highWaterBytes)} reclaimable=${formatStorageBytes(reclaimableBytes)} reclaimableFiles=${reclaimableFiles}`,
+  };
+}
+
 async function healthcheck() {
   await ensureRuntimePath();
   const json = process.argv.includes("--json");
@@ -960,6 +1018,13 @@ async function healthcheck() {
     enabled.stdout.trim() === "enabled",
     enabled.stdout.trim() || enabled.stderr.trim() || `exit ${enabled.status}`,
   );
+
+  try {
+    const storage = sessionStorageHealth();
+    add("session-storage", storage.ok, storage.detail);
+  } catch (error) {
+    add("session-storage", false, `unable to inspect session storage: ${error.message}`);
+  }
 
   let portOk = false;
   const portNumber = Number(port);

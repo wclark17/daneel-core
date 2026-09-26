@@ -1926,11 +1926,14 @@ describe("archiveSessionTranscripts", () => {
       const transcriptPath = path.join(tmpDir, transcriptFileName);
       const args = buildArgs();
       fs.writeFileSync(transcriptPath, '{"type":"session"}\n', "utf-8");
+      const bindingPath = `${transcriptPath}.codex-app-server.json`;
+      fs.writeFileSync(bindingPath, '{"threadId":"thread-1"}\n', "utf-8");
       const archived = archiveSessionTranscripts(args);
       expect(archived).toHaveLength(1);
       expect(archived[0]).toContain(".reset.");
       expect(fs.existsSync(transcriptPath)).toBe(false);
       expect(fs.existsSync(archived[0])).toBe(true);
+      expect(fs.existsSync(bindingPath)).toBe(false);
     },
   );
 

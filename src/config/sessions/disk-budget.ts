@@ -11,6 +11,7 @@ import {
 } from "../../trajectory/paths.js";
 import {
   isCompactionCheckpointTranscriptFileName,
+  isCodexAppServerBindingArtifactName,
   isPrimarySessionTranscriptFileName,
   isSessionArchiveArtifactName,
   isSessionStoreTempArtifactName,
@@ -165,6 +166,7 @@ function resolveSessionArtifactPathsForEntry(params: {
     return [];
   }
   const paths = [transcriptPath];
+  paths.push(`${transcriptPath}.codex-app-server.json`);
   if (params.entry.sessionId) {
     paths.push(resolveTrajectoryPointerFilePath(transcriptPath));
     paths.push(
@@ -296,6 +298,7 @@ function isUnreferencedSessionArtifactFile(
   }
   return (
     isCompactionCheckpointTranscriptFileName(file.name) ||
+    isCodexAppServerBindingArtifactName(file.name) ||
     isTrajectorySessionArtifactName(file.name) ||
     isPrimarySessionTranscriptFileName(file.name)
   );

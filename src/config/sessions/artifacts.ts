@@ -94,6 +94,11 @@ export function isTrajectorySessionArtifactName(fileName: string): boolean {
   return isTrajectoryRuntimeArtifactName(fileName) || isTrajectoryPointerArtifactName(fileName);
 }
 
+/** Returns true for the Codex app-server binding stored beside a session transcript. */
+export function isCodexAppServerBindingArtifactName(fileName: string): boolean {
+  return fileName.endsWith(".jsonl.codex-app-server.json");
+}
+
 /** Returns true for primary session transcript files that represent live session history. */
 export function isPrimarySessionTranscriptFileName(fileName: string): boolean {
   if (fileName === "sessions.json") {
