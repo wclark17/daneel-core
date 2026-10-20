@@ -29,6 +29,30 @@ export const FALLBACK_CODEX_MODELS = [
     supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
   },
   {
+    id: "gpt-6-astra",
+    model: "gpt-6-astra",
+    displayName: "GPT-6 Astra",
+    description: "GPT-6 highest-capability Codex model.",
+    inputModalities: ["text", "image"],
+    supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"],
+  },
+  {
+    id: "gpt-6.1-sol",
+    model: "gpt-6.1-sol",
+    displayName: "GPT-6.1 Sol",
+    description: "GPT-6 balanced Codex model.",
+    inputModalities: ["text", "image"],
+    supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"],
+  },
+  {
+    id: "gpt-6-luna",
+    model: "gpt-6-luna",
+    displayName: "GPT-6 Luna",
+    description: "GPT-6 efficient Codex model.",
+    inputModalities: ["text", "image"],
+    supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"],
+  },
+  {
     id: "gpt-5.6-sol",
     model: "gpt-5.6-sol",
     displayName: "GPT-5.6 Sol",
@@ -104,6 +128,7 @@ function shouldDefaultToReasoningModel(modelId: string): boolean {
   const lower = modelId.toLowerCase();
   return (
     lower.startsWith("gpt-5") ||
+    lower.startsWith("gpt-6") ||
     lower.startsWith("o1") ||
     lower.startsWith("o3") ||
     lower.startsWith("o4")

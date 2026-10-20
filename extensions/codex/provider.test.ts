@@ -21,6 +21,9 @@ function expectStaticFallbackCatalog(
 ) {
   expect(result.provider.models.map((model) => model.id)).toEqual([
     "gpt-5.5",
+    "gpt-6-astra",
+    "gpt-6.1-sol",
+    "gpt-6-luna",
     "gpt-5.6-sol",
     "gpt-5.6-terra",
     "gpt-5.6-luna",
@@ -124,6 +127,9 @@ describe("codex provider", () => {
     expect(result.provider.models.map((model) => model.id)).toEqual([
       "gpt-5.4",
       "gpt-5.5",
+      "gpt-6-astra",
+      "gpt-6.1-sol",
+      "gpt-6-luna",
       "gpt-5.6-sol",
       "gpt-5.6-terra",
       "gpt-5.6-luna",
@@ -196,6 +202,9 @@ describe("codex provider", () => {
     expect(resultProvider?.models.map((model) => model.id)).toEqual([
       "gpt-5.4",
       "gpt-5.5",
+      "gpt-6-astra",
+      "gpt-6.1-sol",
+      "gpt-6-luna",
       "gpt-5.6-sol",
       "gpt-5.6-terra",
       "gpt-5.6-luna",
@@ -248,6 +257,9 @@ describe("codex provider", () => {
     expect(result.provider.models.map((model) => model.id)).toEqual([
       "gpt-5.4",
       "gpt-5.5",
+      "gpt-6-astra",
+      "gpt-6.1-sol",
+      "gpt-6-luna",
       "gpt-5.6-sol",
       "gpt-5.6-terra",
       "gpt-5.6-luna",
@@ -425,7 +437,16 @@ describe("codex provider", () => {
 
     expect(
       result && "provider" in result ? result.provider.models.map((model) => model.id) : [],
-    ).toEqual(["gpt-5.5", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.4-mini"]);
+    ).toEqual([
+      "gpt-5.5",
+      "gpt-6-astra",
+      "gpt-6.1-sol",
+      "gpt-6-luna",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "gpt-5.4-mini",
+    ]);
   });
 
   it("adds the GPT-5 prompt overlay to Codex provider runs", () => {
