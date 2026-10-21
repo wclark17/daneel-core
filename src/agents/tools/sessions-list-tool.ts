@@ -267,6 +267,13 @@ export function createSessionsListTool(opts?: {
 
         const row: SessionListRow = {
           key: displayKey,
+          // Do not guess self identity from the fallback main alias when no requester is known.
+          ...(requesterInternalKey
+            ? {
+                isCurrentSession:
+                  resolveInternalSessionKey({ key, alias, mainKey }) === requesterInternalKey,
+              }
+            : {}),
           agentId: resolvedAgentId,
           kind,
           channel: derivedChannel,

@@ -46,6 +46,7 @@ export type SessionRunStatus = "running" | "done" | "failed" | "killed" | "timeo
 /** Normalized session row returned by session list-style tools. */
 export type SessionListRow = {
   key: string;
+  isCurrentSession?: boolean;
   agentId?: string;
   kind: SessionKind;
   channel: string;

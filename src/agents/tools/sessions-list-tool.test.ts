@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   resolveSandboxedSessionToolContext: vi.fn(() => ({
     mainKey: "main",
     alias: "main",
-    requesterInternalKey: undefined,
+    requesterInternalKey: undefined as string | undefined,
     restrictToSpawned: false,
   })),
 }));
@@ -35,6 +35,7 @@ vi.mock("./sessions-helpers.js", async (importActual) => {
 
 type SessionsListDetails = {
   sessions?: Array<{
+    isCurrentSession?: boolean;
     deliveryContext?: {
       accountId?: string;
       channel?: string;
@@ -68,6 +69,52 @@ describe("sessions-list-tool", () => {
       requesterInternalKey: undefined,
       restrictToSpawned: false,
     });
+  });
+
+  it.each([
+    { requester: "agent:main:main", key: "agent:main:main", alias: "main", expected: true },
+    { requester: "agent:main:main", key: "agent:main:other", alias: "main", expected: false },
+    { requester: "custom", key: "main", alias: "custom", expected: true },
+    { requester: undefined, key: "main", alias: "main", expected: undefined },
+  ])(
+    "identifies self without guessing: $requester / $key",
+    async ({ requester, key, alias, expected }) => {
+      mocks.resolveSandboxedSessionToolContext.mockReturnValue({
+        mainKey: alias,
+        alias,
+        requesterInternalKey: requester,
+        restrictToSpawned: false,
+      });
+      mocks.gatewayCall.mockResolvedValue({ sessions: [{ key, sessionId: "self-test" }] });
+      const result = await createSessionsListTool({ config: {} as never }).execute("self", {});
+      const rows = getSessionsListDetails(result).sessions;
+      expect(rows).toHaveLength(1);
+      expect(rows?.[0]?.isCurrentSession).toBe(expected);
+      if (expected === undefined) {
+        expect(rows?.[0]).not.toHaveProperty("isCurrentSession");
+      }
+    },
+  );
+
+  it("keeps restricted visibility while identifying the current session", async () => {
+    mocks.resolveEffectiveSessionToolsVisibility.mockReturnValue("self");
+    mocks.resolveSandboxedSessionToolContext.mockReturnValue({
+      mainKey: "main",
+      alias: "main",
+      requesterInternalKey: "agent:main:main",
+      restrictToSpawned: false,
+    });
+    mocks.gatewayCall.mockResolvedValue({
+      sessions: [
+        { key: "agent:main:main", sessionId: "self" },
+        { key: "agent:main:other", sessionId: "other" },
+      ],
+    });
+    const result = await createSessionsListTool({ config: {} as never }).execute("self", {});
+    const rows = getSessionsListDetails(result).sessions;
+    expect(rows).toHaveLength(1);
+    expect(rows?.[0]?.isCurrentSession).toBe(true);
+    expect(result.details).toMatchObject({ visibility: { restricted: true } });
   });
 
   it("keeps deliveryContext.threadId in sessions_list results", async () => {
