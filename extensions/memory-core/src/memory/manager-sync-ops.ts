@@ -260,7 +260,6 @@ export abstract class MemoryManagerSyncOps {
     { lastSize: number; pendingBytes: number; pendingMessages: number }
   >();
   protected vectorDegradedWriteWarningShown = false;
-  private lastMetaSerialized: string | null = null;
 
   protected abstract readonly cache: { enabled: boolean; maxEntries?: number };
   protected abstract db: DatabaseSync;
@@ -2126,6 +2125,14 @@ export abstract class MemoryManagerSyncOps {
           }
 
           this.writeMeta(meta);
+          // Validate the temporary database before closing either handle or
+          // promoting it. A populated chunk table alone is not a usable index.
+          const persistedMeta = this.db
+            .prepare(`SELECT value FROM meta WHERE key = ?`)
+            .get(META_KEY) as { value: string } | undefined;
+          if (persistedMeta?.value !== JSON.stringify(meta)) {
+            throw new Error("memory reindex: temporary index metadata validation failed");
+          }
           this.pruneEmbeddingCacheIfNeeded?.();
 
           closeMemoryDatabase(tempDb);
@@ -2230,29 +2237,24 @@ export abstract class MemoryManagerSyncOps {
       | { value: string }
       | undefined;
     if (!row?.value) {
-      this.lastMetaSerialized = null;
       return null;
     }
     try {
       const parsed = JSON.parse(row.value) as MemoryIndexMeta;
-      this.lastMetaSerialized = row.value;
       return parsed;
     } catch {
-      this.lastMetaSerialized = null;
       return null;
     }
   }
 
   protected writeMeta(meta: MemoryIndexMeta) {
     const value = JSON.stringify(meta);
-    if (this.lastMetaSerialized === value) {
-      return;
-    }
+    // Always persist to the current handle: safe reindex replaces this.db,
+    // so a manager-wide value cache cannot prove this database has metadata.
     this.db
       .prepare(
         `INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
       )
       .run(META_KEY, value);
-    this.lastMetaSerialized = value;
   }
 }

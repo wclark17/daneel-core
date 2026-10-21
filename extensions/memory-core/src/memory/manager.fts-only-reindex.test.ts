@@ -46,6 +46,8 @@ describe("memory manager FTS-only reindex", () => {
   });
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
     if (manager) {
       await manager.close();
       manager = null;
@@ -130,6 +132,40 @@ describe("memory manager FTS-only reindex", () => {
     const secondStatus = memoryManager.status();
     expect(secondStatus.chunks).toBeGreaterThan(0);
     expect(countChunksContaining("Alpha topic")).toBeGreaterThan(0);
+  });
+
+  it("persists identical metadata across safe database replacements", async () => {
+    vi.stubEnv("OPENCLAW_TEST_MEMORY_UNSAFE_REINDEX", "0");
+    const memoryManager = await createManager({ provider: "none", vectorEnabled: false });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await memoryManager.sync({ force: true });
+      const db = new DatabaseSync(indexPath);
+      try {
+        expect(db.prepare("SELECT count(*) AS n FROM meta").get()?.n).toBe(1);
+      } finally {
+        db.close();
+      }
+      expect(memoryManager.status().custom?.indexIdentity).toEqual({ status: "valid" });
+      expect(countChunksContaining("Alpha topic")).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps the original index if temporary metadata was not persisted", async () => {
+    vi.stubEnv("OPENCLAW_TEST_MEMORY_UNSAFE_REINDEX", "0");
+    const memoryManager = await createManager({ provider: "none", vectorEnabled: false });
+    await memoryManager.sync({ force: true });
+    await fs.writeFile(path.join(workspaceDir, "MEMORY.md"), "Replacement topic");
+    const writer = memoryManager as unknown as { writeMeta(meta: MemoryIndexMeta): void };
+    const brokenWrite = vi.spyOn(writer, "writeMeta").mockImplementation(() => {});
+    await expect(memoryManager.sync({ force: true })).rejects.toThrow(
+      "temporary index metadata validation failed",
+    );
+    brokenWrite.mockRestore();
+    expect(countChunksContaining("Alpha topic")).toBeGreaterThan(0);
+    expect(memoryManager.status().custom?.indexIdentity).toEqual({ status: "valid" });
+    await memoryManager.sync({ force: true });
+    expect(countChunksContaining("Replacement topic")).toBeGreaterThan(0);
+    expect(memoryManager.status().custom?.indexIdentity).toEqual({ status: "valid" });
   });
 
   it("syncs explicit provider-none memory without resolving an embedding provider", async () => {
