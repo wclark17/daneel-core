@@ -28,7 +28,7 @@ import {
   parsePluginBindingApprovalCustomId,
   resolvePluginConversationBindingApproval,
 } from "openclaw/plugin-sdk/conversation-runtime";
-import { isApprovalNotFoundError } from "openclaw/plugin-sdk/error-runtime";
+import { isTerminalApprovalResolveError } from "openclaw/plugin-sdk/error-runtime";
 import { applyModelOverrideToSessionEntry } from "openclaw/plugin-sdk/model-session-runtime";
 import { formatModelsAvailableHeader } from "openclaw/plugin-sdk/models-provider-runtime";
 import { parseStrictPositiveInteger } from "openclaw/plugin-sdk/number-runtime";
@@ -2315,7 +2315,9 @@ export const registerTelegramHandlers = ({
           logVerbose(
             `telegram: failed to resolve approval callback ${approvalCallback.approvalId}: ${errStr}`,
           );
-          if (isApprovalNotFoundError(resolveErr)) {
+          // Not-found and already-resolved (conflicting repeat) failures are terminal:
+          // retrying the spooled update cannot succeed and only spams the gateway.
+          if (isTerminalApprovalResolveError(resolveErr)) {
             if (isPluginApproval || pluginApprovalAuthorizedSender) {
               try {
                 await clearCallbackButtons();

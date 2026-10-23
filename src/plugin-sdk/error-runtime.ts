@@ -23,4 +23,8 @@ export {
   formatUncaughtError,
   readErrorName,
 } from "../infra/errors.js";
-export { isApprovalNotFoundError } from "../infra/approval-errors.ts";
+export {
+  isApprovalAlreadyResolvedError,
+  isApprovalNotFoundError,
+  isTerminalApprovalResolveError,
+} from "../infra/approval-errors.ts";
