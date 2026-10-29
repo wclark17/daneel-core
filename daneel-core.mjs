@@ -1089,7 +1089,18 @@ async function healthcheck() {
     const routedProviders = new Set(
       routes.flatMap((route) => [route.provider, route.authProvider]).filter(Boolean),
     );
-    const blockingUnusable = unusable.filter((profile) => routedProviders.has(profile.provider));
+    // Only the provider serving the resolved default model blocks health. An
+    // exhausted/unusable fallback provider is still reported (optionalUnusable)
+    // but does not fail the check while the configured route serves turns.
+    const resolvedDefault = String(
+      models.value?.resolvedDefault || models.value?.defaultModel || "",
+    );
+    const defaultProvider = resolvedDefault.includes("/") ? resolvedDefault.split("/")[0] : "";
+    const blockingUnusable = unusable.filter(
+      (profile) =>
+        routedProviders.has(profile.provider) &&
+        (!defaultProvider || profile.provider === defaultProvider),
+    );
     const optionalUnusable = unusable.length - blockingUnusable.length;
     const soonestRemainingMs = oauthProfiles
       .map((profileInfo) => profileInfo.remainingMs)
