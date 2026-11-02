@@ -6,13 +6,61 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GatewayClientRequestError } from "../gateway/client.js";
 import { testing as restartTesting } from "../infra/restart.js";
 import { withEnvAsync } from "../test-utils/env.js";
-import { createGatewayTool } from "./tools/gateway-tool.js";
+import {
+  assertGatewayConfigMutationAllowedForTest,
+  createGatewayTool,
+} from "./tools/gateway-tool.js";
 import { callGatewayTool } from "./tools/gateway.js";
 
 const { callGatewayToolMock, readGatewayCallOptionsMock } = vi.hoisted(() => ({
   callGatewayToolMock: vi.fn(),
   readGatewayCallOptionsMock: vi.fn(() => ({})),
 }));
+
+describe("scoped default fallback permissions", () => {
+  const currentConfig = {
+    agents: { defaults: { model: { primary: "anthropic/primary", fallbacks: ["openai/backup"] } } },
+  };
+
+  it.each(["config.patch", "config.apply"] as const)(
+    "allows only fallback edits via %s",
+    (action) => {
+      for (const fallbacks of [["openai/backup", "ollama/qwen3:8b"], []]) {
+        const model =
+          action === "config.apply"
+            ? { ...currentConfig.agents.defaults.model, fallbacks }
+            : { fallbacks };
+        expect(() =>
+          assertGatewayConfigMutationAllowedForTest({
+            action,
+            currentConfig,
+            raw: JSON.stringify({ agents: { defaults: { model } } }),
+          }),
+        ).not.toThrow();
+      }
+    },
+  );
+
+  it.each(["config.patch", "config.apply"] as const)(
+    "rejects primary or security changes alongside fallbacks via %s",
+    (action) => {
+      for (const extra of [
+        { agents: { defaults: { model: { primary: "ollama/qwen3:8b", fallbacks: [] } } } },
+        { ...currentConfig, tools: { exec: { security: "full" } } },
+        { ...currentConfig, models: { providers: { ollama: { baseUrl: "http://other:11434" } } } },
+        { agents: { defaults: { model: "ollama/qwen3:8b" } } },
+      ]) {
+        expect(() =>
+          assertGatewayConfigMutationAllowedForTest({
+            action,
+            currentConfig,
+            raw: JSON.stringify(extra),
+          }),
+        ).toThrow("cannot change protected config paths");
+      }
+    },
+  );
+});
 
 vi.mock("./tools/gateway.js", () => ({
   callGatewayTool: callGatewayToolMock,
@@ -194,7 +242,11 @@ describe("gateway tool", () => {
 
     try {
       await withEnvAsync(
-        { OPENCLAW_STATE_DIR: stateDir, OPENCLAW_PROFILE: "isolated" },
+        {
+          OPENCLAW_STATE_DIR: stateDir,
+          OPENCLAW_PROFILE: "isolated",
+          OPENCLAW_CLI_NAME: "openclaw",
+        },
         async () => {
           const tool = requireGatewayTool();
 
