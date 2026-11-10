@@ -2064,6 +2064,7 @@ export async function runEmbeddedAttempt(
         cfg: params.config,
         pluginMetadataSnapshot: getCurrentAttemptPluginMetadataSnapshot(),
         contextTokenBudget: params.contextTokenBudget,
+        modelKey: `${params.provider}/${params.modelId}`,
       });
       const autoCompactionGuardArgs = {
         settingsManager,
@@ -2101,6 +2102,7 @@ export async function runEmbeddedAttempt(
         settingsManager,
         cfg: params.config,
         contextTokenBudget: params.contextTokenBudget,
+        modelKey: `${params.provider}/${params.modelId}`,
       });
       applyAgentAutoCompactionGuard(autoCompactionGuardArgs);
       prepStages.mark("session-resource-loader");

@@ -56,6 +56,7 @@ export function createPreparedEmbeddedAgentSettingsManager(params: {
   pluginMetadataSnapshot?: PluginMetadataSnapshot;
   /** Resolved context window budget so reserve-token floor can be capped for small models. */
   contextTokenBudget?: number;
+  modelKey?: string;
 }): SettingsManager {
   const settingsManager = createRuntimeEmbeddedAgentSettingsManager(
     createEmbeddedAgentSettingsManager(params),
@@ -64,6 +65,7 @@ export function createPreparedEmbeddedAgentSettingsManager(params: {
     settingsManager,
     cfg: params.cfg,
     contextTokenBudget: params.contextTokenBudget,
+    modelKey: params.modelKey,
   });
   // Disable the session runtime auto-retry. OpenClaw has its own comprehensive
   // retry layer (failover rotation, auth profile rotation, empty-error retry,

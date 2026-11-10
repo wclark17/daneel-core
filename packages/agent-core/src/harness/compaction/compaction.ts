@@ -549,6 +549,7 @@ export async function generateSummary(
   thinkingLevel?: ThinkingLevel,
   streamFn?: StreamFn,
   runtime?: AgentCoreCompletionRuntimeDeps,
+  chunkDepth = 0,
 ): Promise<Result<string, CompactionError>> {
   const maxTokens = Math.min(
     Math.floor(0.8 * reserveTokens),
@@ -573,6 +574,57 @@ export async function generateSummary(
       timestamp: Date.now(),
     },
   ];
+
+  // Switching to a smaller model can also overflow the summarization request
+  // itself. Summarize bounded pieces, carrying the summary forward rather than
+  // dropping the older conversation or resending the same oversized prompt.
+  const inputBudget = model.contextWindow - maxTokens - 1024;
+  if (
+    Number.isFinite(inputBudget) &&
+    estimateTokens(summarizationMessages[0]) + Math.ceil(SUMMARIZATION_SYSTEM_PROMPT.length / 4) >
+      inputBudget
+  ) {
+    const chunkChars = Math.floor((inputBudget - maxTokens * 2 - 2048) * 2);
+    if (chunkDepth >= 4 || chunkChars < 1024) {
+      return err(
+        new CompactionError(
+          "summarization_failed",
+          "Context window too small for bounded summarization",
+        ),
+      );
+    }
+    const source =
+      (previousSummary ? `<previous-summary>\n${previousSummary}\n</previous-summary>\n` : "") +
+      conversationText;
+    let summary: string | undefined;
+    for (let offset = 0; offset < source.length; offset += chunkChars) {
+      const result = await generateSummary(
+        [
+          {
+            role: "user",
+            content: source.slice(offset, offset + chunkChars),
+            timestamp: Date.now(),
+          },
+        ],
+        model,
+        reserveTokens,
+        apiKey,
+        headers,
+        signal,
+        customInstructions,
+        summary,
+        thinkingLevel,
+        streamFn,
+        runtime,
+        chunkDepth + 1,
+      );
+      if (!result.ok) {
+        return result;
+      }
+      summary = result.value;
+    }
+    return ok(summary ?? "");
+  }
 
   const response = await completeSummarization(
     model,
@@ -625,9 +677,31 @@ export interface CompactionPreparation {
 export function prepareCompaction(
   pathEntries: SessionTreeEntry[],
   settings: CompactionSettings,
+  contextWindow?: number,
 ): Result<CompactionPreparation | undefined, CompactionError> {
-  if (pathEntries.length === 0 || pathEntries[pathEntries.length - 1].type === "compaction") {
+  if (pathEntries.length === 0) {
     return ok(undefined);
+  }
+  const lastEntry = pathEntries[pathEntries.length - 1];
+  if (lastEntry.type === "compaction") {
+    const details = lastEntry.details as { compactionContextWindow?: number } | undefined;
+    const previousWindow = details?.compactionContextWindow;
+    // A boundary produced for a larger model need not fit a fallback. Permit
+    // one re-compaction at a smaller window, not repeated same-budget attempts.
+    // Legacy boundaries without metadata are eligible once if actually too big.
+    const validWindow =
+      typeof contextWindow === "number" && Number.isFinite(contextWindow) && contextWindow > 0;
+    const smallerWindow =
+      previousWindow === undefined ||
+      (typeof previousWindow === "number" && contextWindow! < previousWindow);
+    if (
+      !validWindow ||
+      !smallerWindow ||
+      estimateContextTokens(buildSessionContext(pathEntries).messages).tokens <=
+        Math.max(1, contextWindow! - settings.reserveTokens)
+    ) {
+      return ok(undefined);
+    }
   }
 
   let prevCompactionIndex = -1;

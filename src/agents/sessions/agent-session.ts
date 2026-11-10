@@ -1886,7 +1886,9 @@ export class AgentSession {
     }
 
     const pathEntries = this.sessionManager.getBranch();
-    const preparation = unwrapCoreResult(prepareCompaction(pathEntries, options.settings));
+    const preparation = unwrapCoreResult(
+      prepareCompaction(pathEntries, options.settings, this.model.contextWindow),
+    );
     if (!preparation) {
       if (isManual) {
         const lastEntry = pathEntries[pathEntries.length - 1];
@@ -1941,7 +1943,12 @@ export class AgentSession {
       compactionResult.summary,
       compactionResult.firstKeptEntryId,
       compactionResult.tokensBefore,
-      compactionResult.details,
+      {
+        ...(compactionResult.details && typeof compactionResult.details === "object"
+          ? compactionResult.details
+          : {}),
+        compactionContextWindow: this.model.contextWindow,
+      },
       fromExtension,
     );
     const newEntries = this.sessionManager.getEntries();

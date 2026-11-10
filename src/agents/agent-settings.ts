@@ -73,6 +73,8 @@ export function applyAgentCompactionSettingsFromConfig(params: {
   cfg?: OpenClawConfig;
   /** When known, the resolved context window budget for the current model. */
   contextTokenBudget?: number;
+  /** Active provider/model key; permits opt-in budgets for a smaller fallback. */
+  modelKey?: string;
 }): {
   didOverride: boolean;
   compaction: { reserveTokens: number; keepRecentTokens: number };
@@ -80,6 +82,11 @@ export function applyAgentCompactionSettingsFromConfig(params: {
   const currentReserveTokens = params.settingsManager.getCompactionReserveTokens();
   const currentKeepRecentTokens = params.settingsManager.getCompactionKeepRecentTokens();
   const compactionCfg = params.cfg?.agents?.defaults?.compaction;
+  const modelParams = params.modelKey
+    ? params.cfg?.agents?.defaults?.models?.[params.modelKey]?.params
+    : undefined;
+  const modelReserve = toNonNegativeInt(modelParams?.compactionReserveTokens);
+  const modelKeepRecent = toPositiveInt(modelParams?.compactionKeepRecentTokens);
 
   const configuredReserveTokens = toNonNegativeInt(compactionCfg?.reserveTokens);
   const configuredKeepRecentTokens = toPositiveInt(compactionCfg?.keepRecentTokens);
@@ -100,11 +107,10 @@ export function applyAgentCompactionSettingsFromConfig(params: {
     reserveTokensFloor = Math.min(reserveTokensFloor, maxReserve);
   }
 
-  const targetReserveTokens = Math.max(
-    configuredReserveTokens ?? currentReserveTokens,
-    reserveTokensFloor,
-  );
-  const targetKeepRecentTokens = configuredKeepRecentTokens ?? currentKeepRecentTokens;
+  const targetReserveTokens =
+    modelReserve ?? Math.max(configuredReserveTokens ?? currentReserveTokens, reserveTokensFloor);
+  const targetKeepRecentTokens =
+    modelKeepRecent ?? configuredKeepRecentTokens ?? currentKeepRecentTokens;
 
   const overrides: { reserveTokens?: number; keepRecentTokens?: number } = {};
   if (targetReserveTokens !== currentReserveTokens) {

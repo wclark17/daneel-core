@@ -1129,6 +1129,7 @@ async function compactEmbeddedAgentSessionDirectOnce(
         cwd: effectiveCwd,
         agentDir,
         cfg: params.config,
+        modelKey: `${provider}/${modelId}`,
         pluginMetadataSnapshot: getCurrentPluginMetadataSnapshot({
           config: params.config,
           env: process.env,
@@ -1161,6 +1162,7 @@ async function compactEmbeddedAgentSessionDirectOnce(
         settingsManager,
         cfg: params.config,
         contextTokenBudget,
+        modelKey: `${provider}/${modelId}`,
       });
       // contextEngineInfo is intentionally omitted: this guard runs inside the
       // compaction LLM session, which is not the user-facing agent session and

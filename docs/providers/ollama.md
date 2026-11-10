@@ -7,6 +7,39 @@ read_when:
 title: "Ollama"
 ---
 
+## Smaller-context fallbacks
+
+For a smaller fallback, opt into model-specific compaction budgets without
+reducing the primary model's history budget:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "models": {
+        "ollama/qwen3:8b": {
+          "params": {
+            "compactionReserveTokens": 8192,
+            "compactionKeepRecentTokens": 4096
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+These host-side parameters override the global reserve (including its floor)
+and recent-history budgets for this model only. They do not enlarge its context
+window. For native Ollama, also set `params.num_ctx` in the provider's model
+entry to the verified runtime capacity (for example, `40960`), matching
+`contextWindow`. Do not advertise a larger window than the server can run.
+
+When retained history still exceeds a smaller model's budget immediately after
+compaction, the session permits one further compaction at that smaller window.
+Same-window retries remain suppressed. Oversized summarization inputs are
+processed in bounded pieces; original transcript entries remain archived.
+
 OpenClaw integrates with Ollama's native API (`/api/chat`) for hosted cloud models and local/self-hosted Ollama servers. You can use Ollama in three modes: `Cloud + Local` through a reachable Ollama host, `Cloud only` against `https://ollama.com`, or `Local only` against a reachable Ollama host.
 
 OpenClaw also registers `ollama-cloud` as a first-class hosted provider id for

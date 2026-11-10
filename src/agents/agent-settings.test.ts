@@ -12,6 +12,43 @@ import {
 } from "./agent-settings.js";
 
 describe("applyAgentCompactionSettingsFromConfig", () => {
+  it("uses a fallback's opt-in budget without lowering the primary model reserve", () => {
+    const settingsManager = {
+      getCompactionReserveTokens: () => 20_000,
+      getCompactionKeepRecentTokens: () => 16_384,
+      applyOverrides: vi.fn(),
+    };
+    const cfg = {
+      agents: {
+        defaults: {
+          models: {
+            "ollama/qwen3:8b": {
+              params: {
+                compactionReserveTokens: 8_192,
+                compactionKeepRecentTokens: 4_096,
+              },
+            },
+          },
+        },
+      },
+    };
+    const fallback = applyAgentCompactionSettingsFromConfig({
+      settingsManager,
+      cfg,
+      modelKey: "ollama/qwen3:8b",
+      contextTokenBudget: 40_960,
+    });
+    expect(fallback.compaction).toEqual({ reserveTokens: 8_192, keepRecentTokens: 4_096 });
+    expect(40_960 - fallback.compaction.reserveTokens).toBeGreaterThan(27_758);
+    expect(
+      applyAgentCompactionSettingsFromConfig({
+        settingsManager,
+        cfg,
+        modelKey: "openai/gpt-6-astra",
+        contextTokenBudget: 200_000,
+      }).compaction.reserveTokens,
+    ).toBe(20_000);
+  });
   it("bumps reserveTokens when below floor", () => {
     const settingsManager = {
       getCompactionReserveTokens: () => 16_384,
