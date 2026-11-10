@@ -80,4 +80,8 @@ describe("recompaction after a smaller-model switch", () => {
       expect(prepareCompaction(entries, settings, window)).toEqual({ ok: true, value: undefined });
     }
   });
+  it("includes fixed system/tool overhead when checking a smaller window", () => {
+    const result = prepareCompaction(branch(200_000, false), settings, 40_960, 40_000);
+    expect(result.ok && result.value).toBeTruthy();
+  });
 });

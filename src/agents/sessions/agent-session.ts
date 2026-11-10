@@ -1886,8 +1886,26 @@ export class AgentSession {
     }
 
     const pathEntries = this.sessionManager.getBranch();
+    // History alone may fit while the system prompt and tool schemas push the
+    // complete fallback request over budget. Include them in the boundary guard.
+    const promptOverheadTokens = Math.ceil(
+      (this.systemPrompt.length +
+        JSON.stringify(
+          this.agent.state.tools.map(({ name, description, parameters }) => ({
+            name,
+            description,
+            parameters,
+          })),
+        ).length) /
+        4,
+    );
     const preparation = unwrapCoreResult(
-      prepareCompaction(pathEntries, options.settings, this.model.contextWindow),
+      prepareCompaction(
+        pathEntries,
+        options.settings,
+        this.model.contextWindow,
+        promptOverheadTokens,
+      ),
     );
     if (!preparation) {
       if (isManual) {

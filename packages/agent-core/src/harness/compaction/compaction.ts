@@ -678,6 +678,7 @@ export function prepareCompaction(
   pathEntries: SessionTreeEntry[],
   settings: CompactionSettings,
   contextWindow?: number,
+  promptOverheadTokens = 0,
 ): Result<CompactionPreparation | undefined, CompactionError> {
   if (pathEntries.length === 0) {
     return ok(undefined);
@@ -698,7 +699,7 @@ export function prepareCompaction(
       !validWindow ||
       !smallerWindow ||
       estimateContextTokens(buildSessionContext(pathEntries).messages).tokens <=
-        Math.max(1, contextWindow! - settings.reserveTokens)
+        Math.max(1, contextWindow! - settings.reserveTokens - Math.max(0, promptOverheadTokens))
     ) {
       return ok(undefined);
     }
