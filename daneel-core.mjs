@@ -7,6 +7,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { sharedModelCanary } from "./scripts/lib/daneel-core-model-canary.mjs";
 
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
 const homeDir = os.homedir();
@@ -1161,91 +1162,115 @@ async function healthcheck() {
   }
 
   if (serviceOk && portOk && models.ok && modelRouteOk) {
-    let modelTurn;
-    let modelText = "";
-    let turnOk = false;
-    for (let attempt = 0; attempt < 2 && !turnOk; attempt += 1) {
-      const modelTurnSessionKey = `agent:main:daneel-core-healthcheck-model-turn-${attempt}`;
-      // Clear the prior one-shot probe before reuse. This also recovers a probe
-      // left behind when a parent runner was killed before post-run cleanup.
-      runOptional(
-        process.execPath,
-        [
-          "openclaw.mjs",
-          "gateway",
-          "call",
-          "sessions.delete",
-          "--params",
-          JSON.stringify({ key: modelTurnSessionKey }),
-          "--json",
-          "--timeout",
-          "10000",
-        ],
-        { env: coreEnv(), cwd: repoRoot, timeout: 15_000 },
-      );
-      modelTurn = parseJsonRun(
-        process.execPath,
-        [
-          "openclaw.mjs",
-          "agent",
-          "--local",
-          "--session-key",
-          modelTurnSessionKey,
-          "--timeout",
-          "60",
-          "--thinking",
-          "off",
-          "--json",
-          "--message",
-          "No delivery. Do not use tools. Reply with exactly CORE_MODEL_OK and nothing else.",
-        ],
-        {
-          env: coreEnv(),
-          cwd: repoRoot,
-          timeout: 90_000,
-        },
-      );
-      // Health probes must never accumulate conversational context. A reused
-      // probe session eventually becomes large enough to compact, echo its own
-      // repeated prompt, and time out. Delete each one-shot session after the
-      // child exits; a future cleanup pass can collect files if the gateway is
-      // temporarily unavailable.
-      runOptional(
-        process.execPath,
-        [
-          "openclaw.mjs",
-          "gateway",
-          "call",
-          "sessions.delete",
-          "--params",
-          JSON.stringify({ key: modelTurnSessionKey }),
-          "--json",
-          "--timeout",
-          "10000",
-        ],
-        { env: coreEnv(), cwd: repoRoot, timeout: 15_000 },
-      );
-      modelText =
-        modelTurn.value?.finalAssistantVisibleText ||
-        modelTurn.value?.finalAssistantRawText ||
-        modelTurn.value?.payloads?.[0]?.text ||
-        "";
-      // This is a liveness probe, not an instruction-following benchmark. A
-      // zero exit with valid JSON proves that the configured route completed a
-      // turn. Control tokens such as NO_REPLY can be intentionally suppressed
-      // from the visible payload and, depending on the harness result path,
-      // may also omit the optional execution trace. Authentication, routing,
-      // process failures, and timeouts are checked separately or make
-      // parseJsonRun fail.
-      turnOk = modelTurn.ok;
-    }
+    const configStat = fs.statSync(path.join(stateDir, "openclaw.json"));
+    const invocation = systemctlOptional([
+      "show",
+      serviceUnit,
+      "-p",
+      "InvocationID",
+      "--value",
+    ]).stdout.trim();
+    const canary = await sharedModelCanary({
+      directory: path.join(stateDir, "cache", "model-canary"),
+      key: JSON.stringify([
+        models.value?.resolvedDefault || models.value?.defaultModel,
+        configStat.mtimeMs,
+        configStat.size,
+        invocation,
+      ]),
+      force: process.argv.includes("--fresh-model-probe"),
+      probe: async () => {
+        let modelTurn;
+        let modelText = "";
+        let turnOk = false;
+        for (let attempt = 0; attempt < 2 && !turnOk; attempt += 1) {
+          const modelTurnSessionKey = `agent:main:daneel-core-healthcheck-model-turn-${attempt}`;
+          // Clear the prior one-shot probe before reuse. This also recovers a probe
+          // left behind when a parent runner was killed before post-run cleanup.
+          runOptional(
+            process.execPath,
+            [
+              "openclaw.mjs",
+              "gateway",
+              "call",
+              "sessions.delete",
+              "--params",
+              JSON.stringify({ key: modelTurnSessionKey }),
+              "--json",
+              "--timeout",
+              "10000",
+            ],
+            { env: coreEnv(), cwd: repoRoot, timeout: 15_000 },
+          );
+          modelTurn = parseJsonRun(
+            process.execPath,
+            [
+              "openclaw.mjs",
+              "agent",
+              "--local",
+              "--session-key",
+              modelTurnSessionKey,
+              "--timeout",
+              "60",
+              "--thinking",
+              "off",
+              "--json",
+              "--message",
+              "No delivery. Do not use tools. Reply with exactly CORE_MODEL_OK and nothing else.",
+            ],
+            {
+              env: coreEnv(),
+              cwd: repoRoot,
+              timeout: 90_000,
+            },
+          );
+          // Health probes must never accumulate conversational context. A reused
+          // probe session eventually becomes large enough to compact, echo its own
+          // repeated prompt, and time out. Delete each one-shot session after the
+          // child exits; a future cleanup pass can collect files if the gateway is
+          // temporarily unavailable.
+          runOptional(
+            process.execPath,
+            [
+              "openclaw.mjs",
+              "gateway",
+              "call",
+              "sessions.delete",
+              "--params",
+              JSON.stringify({ key: modelTurnSessionKey }),
+              "--json",
+              "--timeout",
+              "10000",
+            ],
+            { env: coreEnv(), cwd: repoRoot, timeout: 15_000 },
+          );
+          modelText =
+            modelTurn.value?.finalAssistantVisibleText ||
+            modelTurn.value?.finalAssistantRawText ||
+            modelTurn.value?.payloads?.[0]?.text ||
+            "";
+          // This is a liveness probe, not an instruction-following benchmark. A
+          // zero exit with valid JSON proves that the configured route completed a
+          // turn. Control tokens such as NO_REPLY can be intentionally suppressed
+          // from the visible payload and, depending on the harness result path,
+          // may also omit the optional execution trace. Authentication, routing,
+          // process failures, and timeouts are checked separately or make
+          // parseJsonRun fail.
+          turnOk = modelTurn.ok;
+        }
+        return {
+          ok: turnOk,
+          detail: turnOk
+            ? `completed configured route provider=${modelTurn.value?.meta?.agentMeta?.provider || "unknown"} model=${modelTurn.value?.meta?.agentMeta?.model || "unknown"}`
+            : modelTurn.error ||
+              `model turn returned no usable text: ${String(modelText).trim().slice(0, 120) || "empty"}`,
+        };
+      },
+    });
     add(
       "model-turn",
-      turnOk,
-      turnOk
-        ? `completed configured route provider=${modelTurn.value?.meta?.agentMeta?.provider || "unknown"} model=${modelTurn.value?.meta?.agentMeta?.model || "unknown"}`
-        : modelTurn.error ||
-            `model turn returned no usable text: ${String(modelText).trim().slice(0, 120) || "empty"}`,
+      canary.ok,
+      `${canary.cached ? "shared cached" : "fresh"} canary age=${canary.ageSeconds}s: ${canary.detail}`,
     );
   } else {
     add("model-turn", false, "skipped because service, port, auth, or route is not ready");
